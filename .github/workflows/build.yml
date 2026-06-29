@@ -32,7 +32,7 @@ jobs:
             target: aarch64-apple-darwin
             artifact_name: tauri-app-macos-aarch64
 
-          # Linux (x64)
+          # Linux (x64) - 已修正依赖
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
             artifact_name: tauri-app-linux-x64
@@ -52,22 +52,22 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      # ---------- Linux 系统依赖 ----------
+      # ---------- Linux 系统依赖（官方命令） ----------
       - name: Install system dependencies (Ubuntu)
         if: matrix.os == 'ubuntu-latest'
         run: |
           sudo apt update
           sudo apt install -y \
-            libwebkit2gtk-4.0-dev \
+            libwebkit2gtk-4.1-dev \
             build-essential \
             curl \
             wget \
             file \
+            libxdo-dev \
             libssl-dev \
-            libgtk-3-dev \
             libayatana-appindicator3-dev \
             librsvg2-dev
-          # 如需交叉编译 aarch64，取消下面注释
+          # 如需交叉编译 ARM64，请取消下面注释并安装对应工具链
           # if: matrix.target == 'aarch64-unknown-linux-gnu'
           # sudo apt install -y gcc-aarch64-linux-gnu
           # export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
@@ -84,7 +84,6 @@ jobs:
           # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
           # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
           # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          # 等
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       # ---------- 上传构建产物（Artifacts） ----------
@@ -93,8 +92,6 @@ jobs:
         with:
           name: ${{ matrix.artifact_name }}
           path: src-tauri/target/${{ matrix.target }}/release/bundle
-          # 该目录包含所有安装包（.msi, .dmg, .AppImage, .deb 等）
-          # 会自动打包成 zip 供下载
 
   # ==========================
   # 发布任务（仅当推送 v 标签时触发）
@@ -102,7 +99,7 @@ jobs:
   release:
     name: Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build                 # 等待所有构建完成
+    needs: build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -111,7 +108,7 @@ jobs:
       - name: Download all artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts        # 下载到 artifacts 目录，每个 artifact 以子目录存放
+          path: artifacts
 
       - name: List downloaded files (debug)
         run: ls -R artifacts
@@ -119,9 +116,9 @@ jobs:
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v1
         with:
-          name: ${{ github.ref_name }}          # Release 标题（如 v1.0.0）
+          name: ${{ github.ref_name }}
           draft: false
           prerelease: false
-          files: artifacts/**/*                 # 上传所有文件（保留子目录结构）
+          files: artifacts/**/*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
