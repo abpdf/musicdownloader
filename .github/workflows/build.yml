@@ -3,25 +3,24 @@ name: Build and Release Tauri App
 on:
   push:
     tags:
-      - 'v*'                # 匹配 v1.0.0, v2.3.4 等
-  workflow_dispatch:        # 允许手动触发
+      - 'v*'                 # 匹配 v1.0.0, v2.3.4 等
+  workflow_dispatch:          # 手动触发
 
 jobs:
-  # ========================
-  # 构建任务（矩阵策略，每个 target 独立运行）
-  # ========================
+  # ==========================
+  # 多平台构建（矩阵策略）
+  # ==========================
   build:
-    name: Build on ${{ matrix.os }} for ${{ matrix.target }}
+    name: Build ${{ matrix.target }} on ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false      # 一个平台失败不影响其他平台
+      fail-fast: false        # 一个平台失败不影响其他平台
       matrix:
         include:
           # Windows (x64)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             artifact_name: tauri-app-windows-x64
-            # 可扩展：添加 i686-pc-windows-msvc 等
 
           # macOS (Intel)
           - os: macos-latest
@@ -38,25 +37,14 @@ jobs:
             target: x86_64-unknown-linux-gnu
             artifact_name: tauri-app-linux-x64
 
-          # 可选：Linux (ARM64) 交叉编译
+          # （可选）Linux ARM64 交叉编译
           # - os: ubuntu-latest
           #   target: aarch64-unknown-linux-gnu
           #   artifact_name: tauri-app-linux-aarch64
-          #   cross_compile: true   # 需要额外安装交叉编译工具
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      # ---------- 前端环境 ----------
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '18'
-          cache: 'npm'            # 若使用 yarn 则改为 'yarn'
-
-      - name: Install frontend dependencies
-        run: npm ci               # 若使用 yarn 则改为 yarn install --frozen-lockfile
 
       # ---------- Rust 环境 ----------
       - name: Install Rust toolchain
@@ -82,33 +70,39 @@ jobs:
           # 如需交叉编译 aarch64，取消下面注释
           # if: matrix.target == 'aarch64-unknown-linux-gnu'
           # sudo apt install -y gcc-aarch64-linux-gnu
+          # export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+
+      # ---------- 安装 tauri-cli ----------
+      - name: Install tauri-cli
+        run: cargo install tauri-cli
 
       # ---------- 构建 Tauri 应用 ----------
       - name: Build Tauri app
-        uses: tauri-apps/tauri-action@v0
-        id: tauri_build
+        run: cargo tauri build --target ${{ matrix.target }}
         env:
+          # 如果需要签名，可在此设置对应环境变量（macOS / Windows）
+          # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
+          # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
+          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          # 等
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          target: ${{ matrix.target }}
-          uploadArtifacts: false   # 不自动上传，由我们手动控制
-          # 若需要传递额外参数，可设置 args: '-- --features xxx'
 
-      # ---------- 上传构建产物（artifacts） ----------
+      # ---------- 上传构建产物（Artifacts） ----------
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/release/bundle
-          # 整个 bundle 目录被压缩上传，包含所有安装包（.msi/.dmg/.AppImage 等）
+          path: src-tauri/target/${{ matrix.target }}/release/bundle
+          # 该目录包含所有安装包（.msi, .dmg, .AppImage, .deb 等）
+          # 会自动打包成 zip 供下载
 
-  # ========================
-  # 发布任务（仅当推送 v 标签时执行）
-  # ========================
+  # ==========================
+  # 发布任务（仅当推送 v 标签时触发）
+  # ==========================
   release:
     name: Release
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build                 # 等待所有构建任务完成
+    needs: build                 # 等待所有构建完成
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -119,16 +113,15 @@ jobs:
         with:
           path: artifacts        # 下载到 artifacts 目录，每个 artifact 以子目录存放
 
-      - name: List downloaded files (for debugging)
+      - name: List downloaded files (debug)
         run: ls -R artifacts
 
       - name: Create GitHub Release and upload assets
         uses: softprops/action-gh-release@v1
         with:
-          name: ${{ github.ref_name }}          # Release 标题，如 v1.0.0
+          name: ${{ github.ref_name }}          # Release 标题（如 v1.0.0）
           draft: false
           prerelease: false
-          files: artifacts/**/*                 # 递归上传所有文件（安装包）
-          # 若需要扁平化上传（不保留子目录），可在上传前移动文件，但通常无妨
+          files: artifacts/**/*                 # 上传所有文件（保留子目录结构）
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
