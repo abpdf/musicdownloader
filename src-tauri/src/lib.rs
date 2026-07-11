@@ -118,6 +118,7 @@ fn inject_script(window: &tauri::WebviewWindow) {
     let _ = window.eval(script);
 }
 
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
@@ -134,7 +135,33 @@ pub fn run() {
                             let window_for_download = value.clone();
                             thread::spawn(move || {
                                 download::download_file(&data.mp3_url, html_escape::decode_html_entities(&data.mp3_name).to_string().as_str());
-                                let _ = window_for_download.eval("window.history.back();");
+                                    let _ = window_for_download.eval(r#"
+        // 清除 localStorage 和 sessionStorage
+        localStorage.clear();
+        sessionStorage.clear();
+
+        // 清除所有 Cookie
+        document.cookie.split(';').forEach(function(c) {
+            c = c.trim();
+            if (c) {
+                var eq = c.indexOf('=');
+                var name = eq > -1 ? c.substr(0, eq) : c;
+                document.cookie = name + '=; expires=Thu, 01 Jan 1970 00:00:00 GMT; path=/';
+            }
+        });
+
+        // 清除 IndexedDB（如果支持）
+        if (window.indexedDB && typeof window.indexedDB.databases === 'function') {
+            window.indexedDB.databases().then(function(dbs) {
+                dbs.forEach(function(db) {
+                    window.indexedDB.deleteDatabase(db.name);
+                });
+            }).catch(function() {});
+        }
+
+        // 返回上一页
+        window.history.back();
+    "#);
                             });
                         }
                         Err(e) => eprintln!("⚠️ 解析失败: {:?}", e),
