@@ -1,5 +1,25 @@
-use tauri::{Builder, Manager, Webview, PageLoadPayload, webview::PageLoadEvent};
+/*
+// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![greet])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+*/
+
+use tauri::Manager;
+use tauri::Listener;
 use serde::{Deserialize, Serialize};
+use std::thread;
+use std::time::Duration;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mp3Data {
@@ -8,98 +28,131 @@ pub struct Mp3Data {
 
 #[tauri::command]
 fn greet(message: String) {
-    println!("[Rust] Received greet: {}", message);
+    println!("[前端]：{}", message);
 }
 
-// 注入脚本（参数不变，仍为 WebviewWindow）
 fn inject_script(window: &tauri::WebviewWindow) {
+    if let Ok(url) = window.url() {
+        println!("[Rust] 执行 inject_script，URL: {}", url);
+    }
+
     let script = r#"
         (function() {
-            if (typeof window.__TAURI__ === 'undefined') {
-                console.warn('__TAURI__ not available');
+            if (window.__mp3_injected) {
+                console.log('[Tauri] 该页面已注入，跳过');
+                return;
+            }
+            window.__mp3_injected = true;
+
+            // ====== 新增：拦截所有新窗口打开 ======
+            // 拦截 <a target="_blank"> 点击
+            document.addEventListener('click', function(e) {
+                let target = e.target.closest('a');
+                if (target && target.tagName === 'A' && target.target === '_blank') {
+                    e.preventDefault();
+                    // 在当前窗口跳转
+                    window.location.href = target.href;
+                }
+            }, true);
+
+            // 拦截 window.open
+            window.open = function(url, name, features) {
+                // 忽略参数，直接在当前窗口跳转
+                window.location.href = url;
+                // 返回一个模拟窗口对象（避免报错）
+                return {
+                    closed: false,
+                    close: function() {},
+                    focus: function() {},
+                    blur: function() {},
+                    postMessage: function() {}
+                };
+            };
+            // 也拦截浏览器自身的新窗口行为（例如 middle-click 或 Ctrl+click）
+            // 但无法拦截所有，以上已覆盖主要场景。
+
+            // 通知 Rust 注入成功
+            if (window.__TAURI__ && window.__TAURI__.core) {
+                window.__TAURI__.core.invoke("greet", { message: "injected" });
+            } else {
+                console.error('[Tauri] __TAURI__ 不可用');
+            }
+
+            console.log('[Tauri] 注入脚本成功，当前URL:', location.href);
+
+            if (!location.href.startsWith('https://www.gequhai.com/play')) {
+                console.log('[Tauri] URL不匹配，跳过监听');
                 return;
             }
 
-            window.__TAURI__.invoke('greet', { message: 'Injected!' })
-                .catch(err => console.error('invoke greet error:', err));
-
-            if (window.__mp3_listener_active) return;
-            window.__mp3_listener_active = true;
-
-            let lastMp3Url = null;
-
-            function checkAndEmit() {
-                const url = window.mp3_url;
-                if (typeof url === 'string' && url.startsWith('http')) {
-                    if (url !== lastMp3Url) {
-                        lastMp3Url = url;
-                        const emit = window.__TAURI__.emit || window.__TAURI__.core?.emit;
-                        if (emit) {
-                            emit('mp3_captured', { mp3_url: url })
-                                .catch(err => console.error('emit error:', err));
-                            console.log('[Frontend] Emitted mp3_captured:', url);
-                        } else {
-                            console.warn('emit function not found');
-                        }
-                    }
-                }
-            }
+            console.log('[Tauri] URL匹配，开始轮询 mp3_url');
 
             let attempts = 0;
             const maxAttempts = 30;
             const interval = setInterval(() => {
                 attempts++;
-                checkAndEmit();
-                if (attempts >= maxAttempts || window.mp3_url) {
+                const url = window.mp3_url;
+                console.log(`[Tauri] 尝试 ${attempts}: mp3_url =`, url);
+
+                if (typeof url === 'string' && url.startsWith('http')) {
                     clearInterval(interval);
+                    console.log('[Tauri] 成功捕获 mp3_url:', url);
+
+                    if (window.__TAURI__ && window.__TAURI__.event) {
+                        window.__TAURI__.event.emit('mp3_captured', { mp3_url: url })
+                            .then(() => console.log('[Tauri] 事件发送成功'))
+                            .catch(err => console.error('[Tauri] 事件发送失败:', err));
+                    } else {
+                        console.error('[Tauri] window.__TAURI__.event 不可用');
+                    }
+                } else if (attempts >= maxAttempts) {
+                    clearInterval(interval);
+                    console.log('[Tauri] 轮询超时，未捕获到 mp3_url');
                 }
             }, 500);
-
-            const origPushState = history.pushState;
-            history.pushState = function() {
-                origPushState.apply(this, arguments);
-                setTimeout(checkAndEmit, 300);
-            };
-            const origReplaceState = history.replaceState;
-            history.replaceState = function() {
-                origReplaceState.apply(this, arguments);
-                setTimeout(checkAndEmit, 300);
-            };
-            window.addEventListener('popstate', () => setTimeout(checkAndEmit, 300));
-
-            checkAndEmit();
         })();
-        true;
     "#;
     let _ = window.eval(script);
 }
 
 pub fn run() {
-    Builder::default()
-        // 👇 使用 Builder::on_page_load，闭包参数是 &Webview
-        .on_page_load(|webview: &Webview, payload: &PageLoadPayload| {
-                // 从 Webview 获取对应的窗口引用
-                let window = webview.window(); // 返回 &WebviewWindow
-                // 只对标签为 "main" 的窗口注入
-                if window.label() == "main" {
-                    inject_script(window);
-                }
-        })
+    tauri::Builder::default()
         .setup(|app| {
-            let window = app.get_webview_window("main").unwrap();
+            let main_window = app.get_webview_window("main").unwrap();
 
-            // 注册事件监听器（只注册一次）
-            window.listen("mp3_captured", |event| {
+            // 监听来自前端的 mp3_captured 事件
+            main_window.listen("mp3_captured", |event| {
                 let payload = event.payload();
                 if !payload.is_empty() {
                     match serde_json::from_str::<Mp3Data>(payload) {
-                        Ok(data) => println!("✅ [Rust] Captured mp3_url: {}", data.mp3_url),
-                        Err(e) => eprintln!("⚠️ [Rust] Failed to parse payload: {}", e),
+                        Ok(data) => println!("✅ 获取到 mp3_url: {}", data.mp3_url),
+                        Err(e) => eprintln!("⚠️ 解析失败: {:?}", e),
                     }
                 } else {
-                    println!("⚠️ [Rust] Empty payload received");
+                    println!("⚠️ 收到空 payload");
                 }
             });
+
+            // 启动后台线程，轮询 URL 变化并注入脚本
+            let window_clone = main_window.clone();
+            thread::spawn(move || {
+                let mut last_url = String::new();
+                loop {
+                    // 获取当前 URL
+                    if let Ok(url) = window_clone.url() {
+                        let url_str = url.to_string();
+                        if url_str != last_url {
+                            last_url = url_str;
+                            // URL 发生变化，注入脚本
+                            inject_script(&window_clone);
+                        }
+                    }
+                    thread::sleep(Duration::from_millis(150));
+                }
+            });
+
+            // 初次注入（线程会在首次循环中检测到并注入，但这里先注入一次以加快响应）
+            inject_script(&main_window);
 
             Ok(())
         })
