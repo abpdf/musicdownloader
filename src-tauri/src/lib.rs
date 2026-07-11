@@ -15,20 +15,23 @@ pub fn run() {
 }
 */
 
-use tauri::Manager;
-use tauri::Listener;
 use serde::{Deserialize, Serialize};
 use std::thread;
 use std::time::Duration;
+use tauri::Listener;
+use tauri::Manager;
+
+mod download;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mp3Data {
     mp3_url: String,
+    mp3_name: String,   // 新增
 }
 
 #[tauri::command]
 fn greet(message: String) {
-    println!("[前端]：{}", message);
+    println!("[前端]{}", message);
 }
 
 fn inject_script(window: &tauri::WebviewWindow) {
@@ -99,7 +102,7 @@ fn inject_script(window: &tauri::WebviewWindow) {
                     console.log('[Tauri] 成功捕获 mp3_url:', url);
 
                     if (window.__TAURI__ && window.__TAURI__.event) {
-                        window.__TAURI__.event.emit('mp3_captured', { mp3_url: url })
+                        window.__TAURI__.event.emit('mp3_captured', { mp3_url: url , mp3_name: window.mp3_name })
                             .then(() => console.log('[Tauri] 事件发送成功'))
                             .catch(err => console.error('[Tauri] 事件发送失败:', err));
                     } else {
@@ -119,13 +122,21 @@ pub fn run() {
     tauri::Builder::default()
         .setup(|app| {
             let main_window = app.get_webview_window("main").unwrap();
+            let value = main_window.clone();
 
             // 监听来自前端的 mp3_captured 事件
-            main_window.listen("mp3_captured", |event| {
+            main_window.listen("mp3_captured", move |event| {
                 let payload = event.payload();
                 if !payload.is_empty() {
                     match serde_json::from_str::<Mp3Data>(payload) {
-                        Ok(data) => println!("✅ 获取到 mp3_url: {}", data.mp3_url),
+                        Ok(data) => {
+                            println!("✅ 获取到 mp3_url: {}", data.mp3_url);
+                            let window_for_download = value.clone();
+                            thread::spawn(move || {
+                                download::download_file(&data.mp3_url, html_escape::decode_html_entities(&data.mp3_name).to_string().as_str());
+                                let _ = window_for_download.eval("window.history.back();");
+                            });
+                        }
                         Err(e) => eprintln!("⚠️ 解析失败: {:?}", e),
                     }
                 } else {
