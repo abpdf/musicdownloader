@@ -8,6 +8,7 @@ use reqwest::blocking::Client;
 /// - name: 文件名（不含扩展名），若为空则使用 "music"
 pub fn download_file(url: &str, name: &str) {
     // 获取系统下载目录
+    #[cfg(not(target_os = "android"))]
     let dir = match dirs::download_dir() {
         Some(dir) => dir,
         None => {
@@ -15,6 +16,9 @@ pub fn download_file(url: &str, name: &str) {
             return;
         }
     };
+    #[cfg(target_os = "android")]
+    let dir: std::path::PathBuf = "/storage/emulated/0/Download".into(); // Android 下载目录
+
 
     // 从 URL 提取扩展名（最后一个点之后的部分）
     let extension = url
