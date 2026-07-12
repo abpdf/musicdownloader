@@ -79,6 +79,7 @@ pub fn inject() -> String {
 
 pub fn cleanup_and_back() -> String {
     r#"
+    /*
         // 清除 localStorage 和 sessionStorage
         localStorage.clear();
         sessionStorage.clear();
@@ -101,7 +102,7 @@ pub fn cleanup_and_back() -> String {
                 });
             }).catch(function() {});
         }
-
+*/
         // 返回上一页
         window.history.back();
     "#.to_string()
