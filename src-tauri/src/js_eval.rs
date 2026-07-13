@@ -51,7 +51,7 @@ pub fn inject() -> String {
             console.log('[Tauri] URL匹配，开始轮询 mp3_url');
 
             let attempts = 0;
-            const maxAttempts = 30;
+            const maxAttempts = 100;
             const interval = setInterval(() => {
                 attempts++;
                 const url = window.mp3_url;
@@ -63,7 +63,10 @@ pub fn inject() -> String {
 
                     if (window.__TAURI__ && window.__TAURI__.event) {
                         window.__TAURI__.event.emit('mp3_captured', { mp3_url: url , mp3_name: window.mp3_name })
-                            .then(() => console.log('[Tauri] 事件发送成功'))
+                            .then(() => {
+                                console.log('[Tauri] 事件发送成功');
+                                document.getElementsByTagName("body")[0].innerHTML="<h1>正在下载中，当下载完成时会自动返回上一页</h1>"
+                            })
                             .catch(err => console.error('[Tauri] 事件发送失败:', err));
                     } else {
                         console.error('[Tauri] window.__TAURI__.event 不可用');
@@ -72,7 +75,7 @@ pub fn inject() -> String {
                     clearInterval(interval);
                     console.log('[Tauri] 轮询超时，未捕获到 mp3_url');
                 }
-            }, 500);
+            }, 100);
         })();
     "#.to_string()
 }

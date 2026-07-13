@@ -84,7 +84,7 @@ pub fn run() {
                             inject_script(&window_clone);
                         }
                     }
-                    thread::sleep(Duration::from_millis(150));
+                    thread::sleep(Duration::from_millis(100));
                 }
             });
 
