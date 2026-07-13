@@ -1,24 +1,23 @@
 // src-tauri/src/download.rs
+use reqwest::blocking::Client;
 use std::fs::File;
 use std::io::Write;
-use reqwest::blocking::Client;
 
 /// 下载文件到系统下载目录
 /// - url: 文件下载链接
 /// - name: 文件名（不含扩展名），若为空则使用 "music"
-pub fn download_file(url: &str, name: &str) {
+pub fn download_file(url: &str, name: &str) -> String {
     // 获取系统下载目录
     #[cfg(not(target_os = "android"))]
     let dir = match dirs::download_dir() {
         Some(dir) => dir,
         None => {
             eprintln!("⚠️ 无法获取下载目录");
-            return;
+            return "⚠️ 无法获取下载目录".to_string();
         }
     };
     #[cfg(target_os = "android")]
     let dir: std::path::PathBuf = "/storage/emulated/0/Download".into(); // Android 下载目录
-
 
     // 从 URL 提取扩展名（最后一个点之后的部分）
     let extension = url
@@ -32,14 +31,14 @@ pub fn download_file(url: &str, name: &str) {
     // 组合文件名：使用提供的 name，若为空则用 "music"
     let base_name = if name.is_empty() { "music" } else { name };
     let filename = format!("{}.{}", base_name, extension);
-     // 创建子目录路径
+    // 创建子目录路径
     let download_folder = dir.join("musicdownloaded");
 
     // 如果目录不存在，则创建（包括父目录）
     if !download_folder.exists() {
         if let Err(e) = std::fs::create_dir_all(&download_folder) {
             eprintln!("❌ 创建目录失败: {}", e);
-            return;
+            return format!("❌ 创建目录失败: {}", e);
         }
         println!("📁 创建目录: {:?}", download_folder);
     }
@@ -55,23 +54,32 @@ pub fn download_file(url: &str, name: &str) {
                     Ok(b) => b,
                     Err(e) => {
                         eprintln!("❌ 读取响应数据失败: {}", e);
-                        return;
+                        return format!("❌ 读取响应数据失败: {}", e);
                     }
                 };
                 match File::create(&file_path) {
                     Ok(mut file) => {
                         if let Err(e) = file.write_all(&bytes) {
                             eprintln!("❌ 写入文件失败: {}", e);
+                            return format!("❌ 写入文件失败: {}", e);
                         } else {
                             println!("✅ 下载成功: {}", file_path.display());
                         }
                     }
-                    Err(e) => eprintln!("❌ 创建文件失败: {}", e),
+                    Err(e) => {
+                        eprintln!("❌ 创建文件失败: {}", e);
+                        return format!("❌ 创建文件失败: {}", e);
+                    }
                 }
             } else {
                 eprintln!("❌ HTTP 错误: {}", response.status());
+                return format!("❌ HTTP 错误: {}", response.status());
             }
         }
-        Err(e) => eprintln!("❌ 下载请求失败: {}", e),
+        Err(e) => {
+            eprintln!("❌ 下载请求失败: {}", e);
+            return format!("❌ 下载请求失败: {}", e);
+        }
     }
+    "Done".to_string()
 }

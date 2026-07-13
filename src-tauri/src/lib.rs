@@ -27,7 +27,7 @@ mod js_eval;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mp3Data {
     mp3_url: String,
-    mp3_name: String,   // 新增
+    mp3_name: String, // 新增
 }
 
 #[tauri::command]
@@ -59,8 +59,17 @@ pub fn run() {
                             println!("✅ 获取到 mp3_url: {}", data.mp3_url);
                             let window_for_download = value.clone();
                             thread::spawn(move || {
-                                download::download_file(&data.mp3_url, html_escape::decode_html_entities(&data.mp3_name).to_string().as_str());
-                                    let _ = window_for_download.eval(js_eval::cleanup_and_back());
+                                let m = download::download_file(
+                                    &data.mp3_url,
+                                    html_escape::decode_html_entities(&data.mp3_name)
+                                        .to_string()
+                                        .as_str(),
+                                );
+                                let m = m.as_str();
+                                let _ = match m {
+                                    "Done" => window_for_download.eval(js_eval::cleanup_and_back()),
+                                    _ => window_for_download.eval(js_eval::show_error(m)),
+                                };
                             });
                         }
                         Err(e) => eprintln!("⚠️ 解析失败: {:?}", e),
@@ -81,15 +90,13 @@ pub fn run() {
                         if url_str != last_url {
                             last_url = url_str;
                             // URL 发生变化，注入脚本
+                            println!("[Rust] URL 变化，注入脚本，当前 URL: {}", last_url);
                             inject_script(&window_clone);
                         }
                     }
                     thread::sleep(Duration::from_millis(100));
                 }
             });
-
-            // 初次注入（线程会在首次循环中检测到并注入，但这里先注入一次以加快响应）
-            inject_script(&main_window);
 
             Ok(())
         })

@@ -65,7 +65,7 @@ pub fn inject() -> String {
                         window.__TAURI__.event.emit('mp3_captured', { mp3_url: url , mp3_name: window.mp3_name })
                             .then(() => {
                                 console.log('[Tauri] 事件发送成功');
-                                document.getElementsByTagName("body")[0].innerHTML="<h1>正在下载中，当下载完成时会自动返回上一页</h1>"
+                                document.getElementsByTagName("body")[0].innerHTML="<br><br><br><h1>正在下载中，当下载完成时会自动返回上一页</h1>"
                             })
                             .catch(err => console.error('[Tauri] 事件发送失败:', err));
                     } else {
@@ -108,5 +108,10 @@ pub fn cleanup_and_back() -> String {
 */
         // 返回上一页
         window.history.back();
-    "#.to_string()
+    "#
+    .to_string()
+}
+
+pub fn show_error(message: &str) -> String {
+    format!("document.getElementsByTagName('body')[0].innerHTML='<br><br><br><h1>下载失败: {}</h1><br><button onclick=\"window.history.back()\"><h1>返回</h1></button>'",message)
 }
