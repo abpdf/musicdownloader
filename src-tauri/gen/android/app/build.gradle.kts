@@ -38,6 +38,8 @@ android {
         }
         getByName("release") {
             isMinifyEnabled = true
+            isShrinkResources = true
+            isZipAlignEnabled = true
             proguardFiles(
                 *fileTree(".") { include("**/*.pro") }
                     .plus(getDefaultProguardFile("proguard-android-optimize.txt"))
