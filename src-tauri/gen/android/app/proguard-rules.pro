@@ -19,3 +19,6 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+-dontwarn com.fasterxml.jackson.databind.ext.DOMSerializer
+-dontwarn org.w3c.dom.bootstrap.DOMImplementationRegistry
