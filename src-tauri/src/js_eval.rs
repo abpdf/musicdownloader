@@ -39,6 +39,7 @@ pub fn inject() -> String {
                 window.__TAURI__.core.invoke("greet", { message: "injected" });
             } else {
                 console.error('[Tauri] __TAURI__ 不可用');
+                document.getElementsByTagName('body')[0].innerHTML=‘’<br><br><h1>注入失败。</h1><h1>可能是系统WebView较旧</h1>’;
             }
 
             console.log('[Tauri] 注入脚本成功，当前URL:', location.href);
