@@ -1,3 +1,4 @@
+//src-tauri/src/js_eval.rs
 pub fn inject() -> String {
     r#"
         (function() {
@@ -31,7 +32,7 @@ pub fn inject() -> String {
                     postMessage: function() {}
                 };
             };
-            // 也拦截浏览器自身的新窗口行为（例如 middle-click 或 Ctrl+click）
+            // 也拦截浏览器自身的新窗口行为（例如 middle-click 或 Ctrl+click)
             // 但无法拦截所有，以上已覆盖主要场景。
 
             // 通知 Rust 注入成功
@@ -39,7 +40,7 @@ pub fn inject() -> String {
                 window.__TAURI__.core.invoke("greet", { message: "injected" });
             } else {
                 console.error('[Tauri] __TAURI__ 不可用');
-                document.getElementsByTagName('body')[0].innerHTML=‘’<br><br><h1>注入失败。</h1><h1>可能是系统WebView较旧</h1>’;
+                document.getElementsByTagName('body')[0].innerHTML='<br><br><h1>注入失败。</h1><h1>可能是系统WebView较旧</h1>';
             }
 
             console.log('[Tauri] 注入脚本成功，当前URL:', location.href);
@@ -114,5 +115,5 @@ pub fn cleanup_and_back() -> String {
 }
 
 pub fn show_error(message: &str) -> String {
-    format!("document.getElementsByTagName('body')[0].innerHTML='<br><br><br><h1>下载失败: {}</h1><br><button onclick=\"window.history.back()\"><h1>返回</h1></button>'",message)
+    format!("document.getElementsByTagName('body')[0].innerHTML='<br><br><br><h1>下载失败: {}</h1><br><button onclick='window.history.back()'><h1>返回</h1></button>'",message)
 }
