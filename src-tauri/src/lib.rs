@@ -55,6 +55,7 @@ pub fn run() {
     t.setup(|app| {
         let main_window = app.get_webview_window("main").unwrap();
         let value = main_window.clone();
+        #[cfg(target_os = "android")]
         let value2 = main_window.clone();
 
         // 检查并请求权限（Android 9 及以下需要，10+ 立即返回 true）
