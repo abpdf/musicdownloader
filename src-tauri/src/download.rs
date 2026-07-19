@@ -132,6 +132,15 @@ pub async fn save_bytes_to_music_dir(
     let api = app.android_fs_async();
     let public = api.public_storage();
 
+    // 检查并请求权限（Android 9 及以下需要，10+ 立即返回 true）
+    let perm_granted = public
+        .request_permission()
+        .await
+        .map_err(|e| format!("权限请求失败: {}", e))?;
+    if !perm_granted {
+        return Err("用户拒绝了存储权限".to_string());
+    }
+
     // 写入文件（自动创建 musicdownloaded 目录，自动处理同名冲突）
     let _uri = public
         .write_new(
