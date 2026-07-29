@@ -4,7 +4,7 @@
   "version": "0.4.0",
   "identifier": "com.abpdf.musicdownloader",
   "build": {
-    "frontendDist": "https://www.gequhai.com/"
+    "frontendDist": "https://www.gequhai.com"
   },
   "app": {
     "withGlobalTauri": true,

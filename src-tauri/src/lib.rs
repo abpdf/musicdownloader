@@ -18,9 +18,10 @@ pub fn run() {
 
 use serde::{Deserialize, Serialize};
 use std::thread;
-use std::time::Duration;
+//use std::time::Duration;
 use tauri::Listener;
 use tauri::Manager;
+use tauri::webview::PageLoadEvent;
 
 #[cfg(target_os = "android")]
 use tauri_plugin_android_fs::AndroidFsExt;
@@ -38,7 +39,7 @@ pub struct Mp3Data {
 fn greet(message: String) {
     println!("[前端]{}", message);
 }
-
+/*
 fn inject_script(window: &tauri::WebviewWindow) {
     if let Ok(url) = window.url() {
         println!("[Rust] 执行 inject_script，URL: {}", url);
@@ -46,7 +47,7 @@ fn inject_script(window: &tauri::WebviewWindow) {
 
     let _ = window.eval(js_eval::inject());
 }
-
+*/
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let t = tauri::Builder::default();
@@ -101,6 +102,7 @@ pub fn run() {
         });
 
         // 启动后台线程，轮询 URL 变化并注入脚本
+        /*
         let window_clone = main_window.clone();
         thread::spawn(move || {
             thread::sleep(Duration::from_secs(4)); // 等待 4 秒，确保页面加载完成
@@ -119,8 +121,15 @@ pub fn run() {
                 thread::sleep(Duration::from_millis(100));
             }
         });
+        */
 
         Ok(())
+    })
+    .on_page_load(|window, payload| {
+        // 可选：只对特定 label 的窗口执行
+        if window.label() == "main" && payload.event() == PageLoadEvent::Finished {
+            let _ = window.eval(js_eval::inject());
+        }
     })
     .invoke_handler(tauri::generate_handler![greet])
     .run(tauri::generate_context!())

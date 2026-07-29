@@ -50,6 +50,7 @@ pub fn inject() -> String {
                 return;
             }
 
+/*
             console.log('[Tauri] URL匹配，开始轮询 mp3_url');
 
             let attempts = 0;
@@ -78,6 +79,80 @@ pub fn inject() -> String {
                     console.log('[Tauri] 轮询超时，未捕获到 mp3_url');
                 }
             }, 100);
+*/
+console.log('[Tauri] URL匹配，开始劫持 mp3_url');
+
+// 防止重复安装劫持
+if (window.__mp3_capture_installed) {
+    console.log('[Tauri] 劫持已安装，跳过');
+} else {
+    window.__mp3_capture_installed = true;
+
+    let captured = false;  // 确保只触发一次
+
+    // 保存原始值
+    const originalValue = window.mp3_url;
+
+    Object.defineProperty(window, 'mp3_url', {
+        get: function() {
+            return this._mp3_url;
+        },
+        set: function(newVal) {
+            this._mp3_url = newVal;
+            console.log(`[Tauri] mp3_url 被赋值为:`, newVal);
+
+            // 复用原有的成功判断逻辑
+            if (!captured && typeof newVal === 'string' && newVal.startsWith('http')) {
+                captured = true;
+                console.log('[Tauri] 成功捕获 mp3_url:', newVal);
+
+                // 原有发送事件逻辑（一字不改）
+                if (window.__TAURI__ && window.__TAURI__.event) {
+                    window.__TAURI__.event.emit('mp3_captured', {
+                        mp3_url: newVal,
+                        mp3_name: window.mp3_name
+                    })
+                    .then(() => {
+                        console.log('[Tauri] 事件发送成功');
+                        document.getElementsByTagName("body")[0].innerHTML =
+                            "<br><br><br><h1>正在下载中，当下载完成时会自动返回上一页</h1>";
+                    })
+                    .catch(err => console.error('[Tauri] 事件发送失败:', err));
+                } else {
+                    console.error('[Tauri] window.__TAURI__.event 不可用');
+                }
+            }
+        },
+        configurable: true,
+        enumerable: true
+    });
+
+    // 将原始值存入内部
+    window._mp3_url = originalValue;
+
+    // 初始化时立即检查当前值（模拟轮询第一次检查）
+    if (!captured && typeof originalValue === 'string' && originalValue.startsWith('http')) {
+        // 手动触发 setter 逻辑（直接调用 setter 并传入当前值）
+        // 但因为 setter 里有 captured 检查，我们直接调用逻辑
+        captured = true;
+        console.log('[Tauri] 初始值已是有效 URL，立即捕获:', originalValue);
+        // 复用发送逻辑（可以提取成函数，但为保持简洁，复制一遍）
+        if (window.__TAURI__ && window.__TAURI__.event) {
+            window.__TAURI__.event.emit('mp3_captured', {
+                mp3_url: originalValue,
+                mp3_name: window.mp3_name
+            })
+            .then(() => {
+                console.log('[Tauri] 事件发送成功');
+                document.getElementsByTagName("body")[0].innerHTML =
+                    "<br><br><br><h1>正在下载中，当下载完成时会自动返回上一页</h1>";
+            })
+            .catch(err => console.error('[Tauri] 事件发送失败:', err));
+        } else {
+            console.error('[Tauri] window.__TAURI__.event 不可用');
+        }
+    }
+}
         })();
     "#.to_string()
 }
