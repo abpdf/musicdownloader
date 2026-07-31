@@ -4,7 +4,10 @@
   "version": "0.4.1",
   "identifier": "com.abpdf.musicdownloader",
   "build": {
-    "frontendDist": "https://www.gequhai.com"
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../build"
   },
   "app": {
     "withGlobalTauri": true,
