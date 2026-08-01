@@ -1,124 +1,60 @@
-name: Build and Release Tauri App
+name: 'publish'
 
 on:
   push:
     tags:
-      - 'v*'                 # 匹配 v1.0.0, v2.3.4 等
-  workflow_dispatch:          # 手动触发
+      - 'v*'
 
+# This is the example from the readme.
+# On each push to the `release` branch it will create or update a GitHub release, build your app, and upload the artifacts t
 jobs:
-  # ==========================
-  # 多平台构建（矩阵策略）
-  # ==========================
-  build:
-    name: Build ${{ matrix.target }} on ${{ matrix.os }}
-    runs-on: ${{ matrix.os }}
+  publish-tauri:
+    permissions:
+      contents: write
     strategy:
-      fail-fast: false        # 一个平台失败不影响其他平台
+      fail-fast: false
       matrix:
         include:
-          # Windows (x64)
-          - os: windows-latest
-            target: x86_64-pc-windows-msvc
-            artifact_name: tauri-app-windows-x64
+          - platform: 'macos-latest' # for Arm based macs (M1 and above).
+            args: '--target aarch64-apple-darwin'
+          - platform: 'macos-latest' # for Intel based macs.
+            args: '--target x86_64-apple-darwin'
+          - platform: 'ubuntu-22.04' # for Tauri v1 you could replace this with ubuntu-20.04.
+            args: ''
+          - platform: 'windows-latest'
+            args: ''
 
-          # macOS (Intel)
-          - os: macos-latest
-            target: x86_64-apple-darwin
-            artifact_name: tauri-app-macos-x64
-
-          # macOS (Apple Silicon)
-          - os: macos-latest
-            target: aarch64-apple-darwin
-            artifact_name: tauri-app-macos-aarch64
-
-          # Linux (x64) - 已修正依赖
-          - os: ubuntu-latest
-            target: x86_64-unknown-linux-gnu
-            artifact_name: tauri-app-linux-x64
-
-          # （可选）Linux ARM64 交叉编译
-          # - os: ubuntu-latest
-          #   target: aarch64-unknown-linux-gnu
-          #   artifact_name: tauri-app-linux-aarch64
-
+    runs-on: ${{ matrix.platform }}
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # ---------- Rust 环境 ----------
-      - name: Install Rust toolchain
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+
+      - name: install Rust stable
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          # Those targets are only used on macos runners so it's in an `if` to slightly speed up windows and linux builds.
+          targets: ${{ matrix.platform == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
 
-      # ---------- Linux 系统依赖（官方命令） ----------
-      - name: Install system dependencies (Ubuntu)
-        if: matrix.os == 'ubuntu-latest'
+      - name: install dependencies (ubuntu only)
+        if: matrix.platform == 'ubuntu-22.04' # This must match the platform value defined above.
         run: |
-          sudo apt update
-          sudo apt install -y \
-            libwebkit2gtk-4.1-dev \
-            build-essential \
-            curl \
-            wget \
-            file \
-            libxdo-dev \
-            libssl-dev \
-            libayatana-appindicator3-dev \
-            librsvg2-dev
-          # 如需交叉编译 ARM64，请取消下面注释并安装对应工具链
-          # if: matrix.target == 'aarch64-unknown-linux-gnu'
-          # sudo apt install -y gcc-aarch64-linux-gnu
-          # export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf xdg-utils
 
-      # ---------- 安装 tauri-cli ----------
-      - name: Install tauri-cli
-        run: cargo install tauri-cli
+      - name: install frontend dependencies
+        run: yarn install # change this to npm, pnpm or bun depending on which one you use.
 
-      # ---------- 构建 Tauri 应用 ----------
-      - name: Build Tauri app
-        run: cargo tauri build --target ${{ matrix.target }}
+      - uses: tauri-apps/tauri-action@v1
         env:
-          # 如果需要签名，可在此设置对应环境变量（macOS / Windows）
-          # TAURI_PRIVATE_KEY: ${{ secrets.TAURI_PRIVATE_KEY }}
-          # TAURI_KEY_PASSWORD: ${{ secrets.TAURI_KEY_PASSWORD }}
-          # APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      # ---------- 上传构建产物（Artifacts） ----------
-      - name: Upload artifacts
-        uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.artifact_name }}
-          path: src-tauri/target/${{ matrix.target }}/release/bundle
-
-  # ==========================
-  # 发布任务（仅当推送 v 标签时触发）
-  # ==========================
-  release:
-    name: Release
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download all artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: artifacts
-
-      - name: List downloaded files (debug)
-        run: ls -R artifacts
-
-      - name: Create GitHub Release and upload assets
-        uses: softprops/action-gh-release@v1
-        with:
-          name: ${{ github.ref_name }}
-          draft: false
+          tagName: app-v__VERSION__ # the action automatically replaces \_\_VERSION\_\_ with the app version.
+          releaseName: 'App v__VERSION__'
+          releaseBody: 'See the assets to download this version and install.'
+          releaseDraft: true
           prerelease: false
-          files: artifacts/**/*
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          args: ${{ matrix.args }}
