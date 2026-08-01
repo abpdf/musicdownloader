@@ -6,6 +6,7 @@
   let showApache = $state(false);
   import Apache from './apache.svelte';
   import Mit from './mit.svelte';
+  import Netease from './netease.svelte';
 </script>
 
 <main class="p-strip">
@@ -18,14 +19,18 @@
             <h1 class="p-heading--1">欢迎来到 musicdownloader!</h1>
             <button class="p-button--link" onclick={() => { page = 1; }}>关于</button>
           </div>
+            <h3 class="p-heading--3">用法(通用)：</h3>
+            <p>搜索歌名或歌手，点击结果，你的下载将自动开始。</p>
+            <p>音频文件（mp3、aac）将自动存到系统Music文件夹的musicdownloaded子文件夹里</p>
 
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
-            <h2 class="p-heading--2">gequhai.com</h2>
-            <h3 class="p-heading--3">用法：</h3>
-            <p>搜索歌名或歌手，点击结果，你的下载将自动开始。</p>
-            <p>音频文件（mp3、aac）将自动存到系统Music文件夹的musicdownloaded子文件夹里</p>
+            <h2 class="p-heading--2">从gequhai下载</h2>
             <a class="p-button--positive" href="https://www.gequhai.com">开始</a>
+          </div>
+          <div class="p-card--highlighted" style="padding: 2rem;">
+            <h2 class="p-heading--2">从网易云音乐下载</h2>
+            <button class="p-button--positive" onclick={()=>{page = 2} }>开始</button>
           </div>
         </div>
 
@@ -77,6 +82,13 @@
             </div>
           </div>
         </div>
+      {:else if page ==2}
+      <div in:fade="{{ duration: 400 }}">
+        <div style="margin-bottom: 1rem;">
+            <button class="p-button" onclick={() => { page = 0; }}>← 返回</button>
+        </div>
+        <Netease />
+      </div>
       {/if}
     </div>
   </div>

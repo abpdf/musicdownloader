@@ -18,7 +18,6 @@ pub fn run() {
 
 use serde::{Deserialize, Serialize};
 use std::thread;
-//use std::time::Duration;
 use tauri::Listener;
 use tauri::Manager;
 use tauri::webview::PageLoadEvent;
@@ -81,11 +80,11 @@ pub fn run() {
                         thread::spawn(move || {
                             let app_handle = window_for_download.app_handle();
                             let m = download::download_file(
+                                app_handle.clone(),
                                 &data.mp3_url,
                                 html_escape::decode_html_entities(&data.mp3_name)
                                     .to_string()
                                     .as_str(),
-                                &app_handle,
                             );
                             let m = m.as_str();
                             let _ = match m {
@@ -131,7 +130,7 @@ pub fn run() {
             let _ = window.eval(js_eval::inject());
         }
     })
-    .invoke_handler(tauri::generate_handler![greet])
+    .invoke_handler(tauri::generate_handler![greet,download::download_file])
     .run(tauri::generate_context!())
     .expect("启动失败");
 }

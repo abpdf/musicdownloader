@@ -8,14 +8,15 @@ use std::io::Write;
 #[cfg(target_os = "android")]
 use tauri_plugin_android_fs::{AndroidFsExt, PublicAudioDir};
 
+
 /// 下载文件到系统下载目录
 /// - url: 文件下载链接
 /// - name: 文件名（不含扩展名），若为空则使用 "music"
 /// - app_handle: Tauri 应用句柄
-pub fn download_file(url: &str, name: &str, app_handle: &tauri::AppHandle) -> String {
+#[tauri::command]
+pub fn download_file(app_handle: tauri::AppHandle,url: &str, name: &str) -> String {
     #[cfg(not(target_os = "android"))]
-    let _ = app_handle; // 避免未使用警告
-                        // 获取系统下载目录
+    let _ = app_handle;
     #[cfg(not(target_os = "android"))]
     let dir = match dirs::audio_dir() {
         Some(dir) => dir,
