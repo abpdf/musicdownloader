@@ -1,4 +1,5 @@
 <script>
+  import './styles.scss';
   import { fade } from 'svelte/transition';
   let page = $state(0);
   let showMIT = $state(false);
