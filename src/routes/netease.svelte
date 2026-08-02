@@ -1,4 +1,44 @@
 <script>
+// ============ 方案二：独立键名（每个ID单独存） ============
+const FlagDB2 = {
+  // 生成唯一键名（统一加前缀，方便管理）
+  _getKey(id) {
+    return 'flag_' + id; // 例如：flag_1001
+  },
+
+  // 1. 存/改：设置某个ID的状态
+  set(id, value) {
+    localStorage.setItem(this._getKey(id), JSON.stringify(value));
+  },
+
+  // 2. 查：获取某个ID的状态
+  //    未设置返回 undefined，设置过返回 true/false
+  get(id) {
+    const val = localStorage.getItem(this._getKey(id));
+    return val !== null ? JSON.parse(val) : undefined;
+  },
+
+  // 3. 删：删除某个ID的记录
+  delete(id) {
+    localStorage.removeItem(this._getKey(id));
+  },
+
+  // 4. 清空：删除所有 flag_ 开头的键（批量清空）
+  clear() {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('flag_')) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
+  }
+};
+
+
+
+
     import { invoke } from "@tauri-apps/api/core";
     let result = $state([]);
     let name = $state();
@@ -32,6 +72,10 @@
         // 第三步：去除首尾空格（Windows 不允许文件名以空格结尾）
         return result.trim();
     }
+    function getId(url){
+        const parsed = new URL(url);
+        return parsed.searchParams.get('id');
+    }
     async function getFinalMp3Url(apiUrl) {
         const response = await fetch(apiUrl, { method: "HEAD" });
         // response.url 此时就是最后的 MP3 直链，没有下载任何文件内容
@@ -53,7 +97,8 @@
             if (
                 result[i].status != "Done" &&
                 result[i].status != "waiting" &&
-                result[i].status != "downloading"
+                result[i].status != "downloading"&&
+                FlagDB2.get(getId(result[i].url)) !== true
             ) {
                 addQueue(result[i]);
             }
@@ -76,6 +121,9 @@
             url: finalurl,
             name: sanitizeFileName(u.name + "-" + u.artist),
         });
+        if (status==="Done"){
+            FlagDB2.set(getId(u.url),true);
+        }
         u.status = status;
     }
 </script>
@@ -209,7 +257,9 @@
                         <th>{a.name}</th>
                         <td>{a.artist}</td>
                         <td>
-                            {#if !a.status}
+                            {#if FlagDB2.get(getId(a.url)) === true}
+                                <div class="p-status-label--positive">下过了</div>
+                            {:else if !a.status}
                                 <button
                                     class="p-button"
                                     on:click={() => {
