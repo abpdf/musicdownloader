@@ -1,8 +1,9 @@
 <script>
     import { invoke } from "@tauri-apps/api/core";
-    let result = $state();
+    let result = $state([]);
     let name = $state();
     async function search() {
+        result =[];
         const url = `https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(name)}&limit=30&server=netease`;
         try {
             const response = await fetch(url);
@@ -36,7 +37,7 @@
     async function download(u) {
         u.status="downloading";
         const finalurl = await getFinalMp3Url(u.url);
-        const status = await invoke("download_file", { url: finalurl, name: sanitizeFileName(u.name+"-"+u.artist)});
+        const status = await invoke("download_file_async", { url: finalurl, name: sanitizeFileName(u.name+"-"+u.artist)});
         u.status=status;
     }
 </script>
@@ -58,7 +59,7 @@
             <i class="p-icon--search">Search</i>
         </button>
     </form>
-
+    {#if result.length !==0 }
     <table>
         <thead>
             <tr>
@@ -74,12 +75,7 @@
                     <td>{a.artist}</td>
                     <td>
                     {#if !a.status}
-                        <button
-                            class="p-button"
-                            on:click={() => {
-                                download(a);
-                            }}>下载</button
-                        >
+                        <button class="p-button" on:click={() =>{download(a);}}>下载</button>
                     {:else if a.status=="downloading"}
                         <div class="p-status-label--information">下载中</div>
                     {:else if a.status=="wating"}
@@ -87,12 +83,12 @@
                     {:else if a.status=="Done"}
                         <div class="p-status-label--positive">成功</div>
                     {:else}
-                        <div class="p-status-label--negative">失败</div>
+                        <button class="p-button--negative" on:click={() =>{download(a);}}>重试</button>
                     {/if}
-                        </td
-                    >
+                    </td>
                 </tr>
             {/each}
         </tbody>
     </table>
+    {/if}
 </div>

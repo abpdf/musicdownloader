@@ -130,7 +130,7 @@ pub fn run() {
             let _ = window.eval(js_eval::inject());
         }
     })
-    .invoke_handler(tauri::generate_handler![greet,download::download_file])
+    .invoke_handler(tauri::generate_handler![greet,download::download_file_async])
     .run(tauri::generate_context!())
     .expect("启动失败");
 }

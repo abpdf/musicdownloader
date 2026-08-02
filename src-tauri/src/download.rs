@@ -8,12 +8,21 @@ use std::io::Write;
 #[cfg(target_os = "android")]
 use tauri_plugin_android_fs::{AndroidFsExt, PublicAudioDir};
 
+#[tauri::command]
+pub async fn download_file_async(app_handle: tauri::AppHandle, url: String, name: String) -> String {
+    let result = tauri::async_runtime::spawn_blocking(move || {
+        download_file(app_handle, &url, &name)
+    }).await;
+    match result {
+        Ok(return_value) => return_value,
+        Err(join_error) => format!("内部错误: {}", join_error),
+    }
+}
 
 /// 下载文件到系统下载目录
 /// - url: 文件下载链接
 /// - name: 文件名（不含扩展名），若为空则使用 "music"
 /// - app_handle: Tauri 应用句柄
-#[tauri::command]
 pub fn download_file(app_handle: tauri::AppHandle,url: &str, name: &str) -> String {
     #[cfg(not(target_os = "android"))]
     let _ = app_handle;
