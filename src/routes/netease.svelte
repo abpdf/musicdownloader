@@ -34,10 +34,10 @@
         return response.url;
     }
     async function download(u) {
+        u.status="downloading";
         const finalurl = await getFinalMp3Url(u.url);
-        console.log(finalurl)
-        const status = await invoke("download_file", { url: finalurl, name: sanitizeFileName(u.name+"-"+u.artist)  });
-        console.log(status);
+        const status = await invoke("download_file", { url: finalurl, name: sanitizeFileName(u.name+"-"+u.artist)});
+        u.status=status;
     }
 </script>
 
@@ -72,13 +72,24 @@
                 <tr>
                     <th>{a.name}</th>
                     <td>{a.artist}</td>
-                    <td
-                        ><button
+                    <td>
+                    {#if !a.status}
+                        <button
                             class="p-button"
                             on:click={() => {
                                 download(a);
                             }}>下载</button
-                        ></td
+                        >
+                    {:else if a.status=="downloading"}
+                        <div class="p-status-label--information">下载中</div>
+                    {:else if a.status=="wating"}
+                        <div class="p-status-label">等待中</div>
+                    {:else if a.status=="Done"}
+                        <div class="p-status-label--positive">成功</div>
+                    {:else}
+                        <div class="p-status-label--negative">失败</div>
+                    {/if}
+                        </td
                     >
                 </tr>
             {/each}
