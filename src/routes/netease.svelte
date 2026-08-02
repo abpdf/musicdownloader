@@ -2,8 +2,11 @@
     import { invoke } from "@tauri-apps/api/core";
     let result = $state([]);
     let name = $state();
+
+    let queue = [];
+
     async function search() {
-        result =[];
+        result = [];
         const url = `https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(name)}&limit=30&server=netease`;
         try {
             const response = await fetch(url);
@@ -16,29 +19,63 @@
         }
     }
     function sanitizeFileName(name) {
-    if (typeof name !== 'string') return '';
+        if (typeof name !== "string") return "";
 
-    // 第一步：将 / 和 \ 全部替换为 &（and 符号）
-    let result = name.replace(/[\\\/]/g, '&');
+        // 第一步：将 / 和 \ 全部替换为 &（and 符号）
+        let result = name.replace(/[\\\/]/g, "&");
 
-    // 第二步：移除其他非法字符（如 : * ? " < > |）
-    // 注意：& 已被保留，不会在这里被移除
-    result = result.replace(/[:*?"<>|]/g, '');
+        // 第二步：移除其他非法字符（如 : * ? " < > |）
+        // 注意：& 已被保留，不会在这里被移除
+        result = result.replace(/[:*?"<>|]/g, "");
 
-    // 第三步：去除首尾空格（Windows 不允许文件名以空格结尾）
-    return result.trim();
-}
+        // 第三步：去除首尾空格（Windows 不允许文件名以空格结尾）
+        return result.trim();
+    }
     async function getFinalMp3Url(apiUrl) {
-
         const response = await fetch(apiUrl, { method: "HEAD" });
         // response.url 此时就是最后的 MP3 直链，没有下载任何文件内容
         return response.url;
     }
+
+    function addQueue(a) {
+        if (queue.length === 0) {
+            queue.push(a);
+            doWork();
+        } else {
+            a.status = "waiting";
+            queue.push(a);
+        }
+    }
+
+    function downloadAll() {
+        for (let i = 0; i < result.length; i++) {
+            if (
+                result[i].status != "Done" &&
+                result[i].status != "waiting" &&
+                result[i].status != "downloading"
+            ) {
+                addQueue(result[i]);
+            }
+        }
+    }
+
+    async function doWork() {
+        while (queue.length > 0) {
+            try {
+                await download(queue[0]);
+            } catch (error) {}
+            queue.shift();
+        }
+    }
+
     async function download(u) {
-        u.status="downloading";
+        u.status = "downloading";
         const finalurl = await getFinalMp3Url(u.url);
-        const status = await invoke("download_file_async", { url: finalurl, name: sanitizeFileName(u.name+"-"+u.artist)});
-        u.status=status;
+        const status = await invoke("download_file_async", {
+            url: finalurl,
+            name: sanitizeFileName(u.name + "-" + u.artist),
+        });
+        u.status = status;
     }
 </script>
 
@@ -59,36 +96,55 @@
             <i class="p-icon--search">Search</i>
         </button>
     </form>
-    {#if result.length !==0 }
-    <table>
-        <thead>
-            <tr>
-                <th>歌曲名</th>
-                <th>歌手</th>
-                <th><button class="p-button--positive">全部下载</button></th>
-            </tr>
-        </thead>
-        <tbody>
-            {#each result as a}
+    {#if result.length !== 0}
+        <table>
+            <thead>
                 <tr>
-                    <th>{a.name}</th>
-                    <td>{a.artist}</td>
-                    <td>
-                    {#if !a.status}
-                        <button class="p-button" on:click={() =>{download(a);}}>下载</button>
-                    {:else if a.status=="downloading"}
-                        <div class="p-status-label--information">下载中</div>
-                    {:else if a.status=="wating"}
-                        <div class="p-status-label">等待中</div>
-                    {:else if a.status=="Done"}
-                        <div class="p-status-label--positive">成功</div>
-                    {:else}
-                        <button class="p-button--negative" on:click={() =>{download(a);}}>重试</button>
-                    {/if}
-                    </td>
+                    <th>歌曲名</th>
+                    <th>歌手</th>
+                    <th
+                        ><button
+                            class="p-button--positive"
+                            on:click={downloadAll}
+                        >
+                            全部下载</button
+                        ></th
+                    >
                 </tr>
-            {/each}
-        </tbody>
-    </table>
+            </thead>
+            <tbody>
+                {#each result as a}
+                    <tr>
+                        <th>{a.name}</th>
+                        <td>{a.artist}</td>
+                        <td>
+                            {#if !a.status}
+                                <button
+                                    class="p-button"
+                                    on:click={() => {
+                                        addQueue(a);
+                                    }}>下载</button
+                                >
+                            {:else if a.status == "downloading"}
+                                <div class="p-status-label--information">
+                                    下载中
+                                </div>
+                            {:else if a.status == "waiting"}
+                                <div class="p-status-label">等待中</div>
+                            {:else if a.status == "Done"}
+                                <div class="p-status-label--positive">成功</div>
+                            {:else}
+                                <button
+                                    class="p-button--negative"
+                                    on:click={() => {
+                                        addQueue(a);
+                                    }}>重试</button
+                                >
+                            {/if}
+                        </td>
+                    </tr>
+                {/each}
+            </tbody>
+        </table>
     {/if}
 </div>
