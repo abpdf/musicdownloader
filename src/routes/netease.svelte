@@ -36,18 +36,21 @@ const FlagDB2 = {
   }
 };
 
-
-
-
+    import { page } from './page.svelte.js';
+    import { fade } from 'svelte/transition';
     import { invoke } from "@tauri-apps/api/core";
     let result = $state([]);
     let name = $state();
     let limit = $state(30);
-
+    let showInofOfStatus = $state(false);
+    let isBusy = $state(false);
+    let reset =$state(false);
     let queue = [];
+    let searchInfo=$state("");
 
     async function search() {
         result = [];
+        searchInfo="";
         const url = `https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(name)}&limit=${limit}&server=netease`;
         try {
             const response = await fetch(url);
@@ -56,7 +59,7 @@ const FlagDB2 = {
             }
             result = await response.json();
         } catch (error) {
-            console.error("搜索失败：", error);
+            searchInfo = ""+ error;
         }
     }
     function sanitizeFileName(name) {
@@ -106,12 +109,16 @@ const FlagDB2 = {
     }
 
     async function doWork() {
+        isBusy=true;
         while (queue.length > 0) {
             try {
                 await download(queue[0]);
-            } catch (error) {}
+            } catch (error) {
+                queue[0].status="失败："+error;
+            }
             queue.shift();
         }
+        isBusy=false
     }
 
     async function download(u) {
@@ -128,6 +135,9 @@ const FlagDB2 = {
     }
 </script>
 
+<div style="margin-bottom: 1rem;">
+            <button class="p-button" on:click={() => { page.num = 0; }}  disabled={isBusy}>← 返回</button>
+        </div>
 <div class="p-card--highlighted" style="padding: 2rem;">
     <form class="p-search-box" on:submit|preventDefault={() => {}}>
         <label class="u-off-screen" for="search">Search</label>
@@ -141,11 +151,11 @@ const FlagDB2 = {
         <button type="reset" class="p-search-box__reset">
             <i class="p-icon--close">Close</i>
         </button>
-        <button type="submit" class="p-search-box__button" on:click={search}>
+        <button type="submit" class="p-search-box__button" on:click={search} disabled={isBusy}>
             <i class="p-icon--search">Search</i>
         </button>
     </form>
-    <div class="p-slider__wrapper">
+    <div class="p-slider__wrapper" style="margin-bottom: 0.5rem;">
     <div style="white-space: nowrap;">
   搜索个数：
 </div>
@@ -165,6 +175,21 @@ const FlagDB2 = {
             id="slider3-input"
             tabindex="0"
         />
+    </div>
+
+    <div style="margin-bottom: 0.5rem;">
+              <div
+                style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0;"
+                on:click={() => { showInofOfStatus = !showInofOfStatus; }}
+              >
+                <strong>关于下载记录</strong>
+                <span>{showInofOfStatus ? '▾' : '▸'}</span>
+              </div>
+              {#if showInofOfStatus}
+                <div in:fade="{{ duration: 400 }}" style="padding-left: 1rem; color: #666;">
+                  <p>仅记录哪个下载了，以标记为“下过了”，避免重复下载。不同板块记录不互通。重置后立即生效，此操作不可逆！</p><p><button class="p-button--negative" on:click={()=>{FlagDB2.clear();reset=!reset;}}>重置</button></p>
+                </div>
+              {/if}
     </div>
     <script>
         var isWebkit =
@@ -235,14 +260,24 @@ const FlagDB2 = {
             initSlider(sliders[i]);
         }
     </script>
+    {#if searchInfo}
+        <div class="p-notification--negative">
+            <div class="p-notification__content">
+                <h5 class="p-notification__title">搜索失败</h5>
+                <p class="p-notification__message">{searchInfo}</p>
+            </div>
+        </div>
+    {/if}
+    {#key reset}
     {#if result.length !== 0}
-        <table>
+      <hr class="p-divider" style="margin-top: 0.5rem;margin-bottom: 0.5rem;" />
+  <table>
             <thead>
                 <tr>
-                    <th>歌曲名</th>
-                    <th>歌手</th>
+                    <th class="p-heading--5">歌曲名</th>
+                    <th class="p-heading--5">歌手</th>
                     <th
-                        ><button
+                        ><button style="margin-bottom:0px;white-space: nowrap;"
                             class="p-button--positive"
                             on:click={downloadAll}
                         >
@@ -260,7 +295,7 @@ const FlagDB2 = {
                             {#if FlagDB2.get(getId(a.url)) === true}
                                 <div class="p-status-label--positive">下过了</div>
                             {:else if !a.status}
-                                <button
+                                <button style="margin-bottom:0px;"
                                     class="p-button"
                                     on:click={() => {
                                         addQueue(a);
@@ -275,7 +310,7 @@ const FlagDB2 = {
                             {:else if a.status == "Done"}
                                 <div class="p-status-label--positive">成功</div>
                             {:else}
-                                <button
+                                <button style="margin-bottom:0px;"
                                     class="p-button--negative"
                                     on:click={() => {
                                         addQueue(a);
@@ -284,8 +319,18 @@ const FlagDB2 = {
                             {/if}
                         </td>
                     </tr>
+                    {#if FlagDB2.get(getId(a.url)) !== true&&!!a.status&& a.status !== "downloading"&&a.status !== "waiting"&&a.status !== "Done"}
+                    <tr style="border-top:0"><td colspan="3">
+                        <div class="p-notification--negative">
+  <div class="p-notification__content">
+    <h5 class="p-notification__title">出错了</h5>
+    <p class="p-notification__message">{a.status}</p>
+  </div>
+</div></td></tr>
+                    {/if}
                 {/each}
             </tbody>
         </table>
     {/if}
+    {/key}
 </div>

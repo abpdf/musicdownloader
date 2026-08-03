@@ -1,7 +1,7 @@
 <script>
   import './styles.scss';
   import { fade } from 'svelte/transition';
-  let page = $state(0);
+  import { page } from './page.svelte.js';
   let showMIT = $state(false);
   let showApache = $state(false);
   import Apache from './apache.svelte';
@@ -12,12 +12,12 @@
 <main class="p-strip">
   <div class="row">
     <div class="col-8 col-start-3">
-      {#if page == 0}
+      {#if page.num == 0}
         <div in:fade="{{ duration: 400 }}">
           <!-- 标题行 -->
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
             <h1 class="p-heading--1">欢迎来到 musicdownloader!</h1>
-            <button class="p-button--link" onclick={() => { page = 1; }}>关于</button>
+            <button class="p-button--link" onclick={() => { page.num = 1; }}>关于</button>
           </div>
             <h3 class="p-heading--3">用法(通用)：</h3>
             <p>搜索歌名或歌手，点击结果，你的下载将自动开始。</p>
@@ -25,20 +25,22 @@
 
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
+            <h2 class="p-heading--2">从网易云音乐下载</h2>
+            <p>API由锦木祈杰提供（https://qijieya.cn/）</p>
+            <button class="p-button--positive" onclick={()=>{page.num = 2} }>开始</button>
+          </div>
+        </div>
+          <div class="p-card--highlighted" style="padding: 2rem;">
             <h2 class="p-heading--2">从gequhai下载</h2>
             <a class="p-button--positive" href="https://www.gequhai.com">开始</a>
           </div>
-          <div class="p-card--highlighted" style="padding: 2rem;">
-            <h2 class="p-heading--2">从网易云音乐下载</h2>
-            <button class="p-button--positive" onclick={()=>{page = 2} }>开始</button>
-          </div>
-        </div>
 
-      {:else if page == 1}
+
+      {:else if page.num == 1}
         <div in:fade="{{ duration: 400 }}">
           <!-- 返回按钮 -->
           <div style="margin-bottom: 1rem;">
-            <button class="p-button" onclick={() => { page = 0; }}>← 返回</button>
+            <button class="p-button" onclick={() => { page.num = 0; }}>← 返回</button>
           </div>
 
           <!-- 卡片保留 padding -->
@@ -82,11 +84,8 @@
             </div>
           </div>
         </div>
-      {:else if page ==2}
+      {:else if page.num ==2}
       <div in:fade="{{ duration: 400 }}">
-        <div style="margin-bottom: 1rem;">
-            <button class="p-button" onclick={() => { page = 0; }}>← 返回</button>
-        </div>
         <Netease />
       </div>
       {/if}
