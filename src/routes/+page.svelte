@@ -25,8 +25,7 @@
 
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
-            <h2 class="p-heading--2">从网易云音乐下载</h2>
-            <p>API由锦木祈杰提供（https://qijieya.cn/）</p>
+            <h2 class="p-heading--2">通过 祈杰のMeting-API 下载</h2>
             <button class="p-button--positive" onclick={()=>{page.num = 2} }>开始</button>
           </div>
         </div>

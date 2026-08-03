@@ -114,7 +114,7 @@ const FlagDB2 = {
             try {
                 await download(queue[0]);
             } catch (error) {
-                queue[0].status="失败："+error;
+                queue[0].status=""+error;
             }
             queue.shift();
         }
@@ -277,7 +277,7 @@ const FlagDB2 = {
                     <th class="p-heading--5">歌曲名</th>
                     <th class="p-heading--5">歌手</th>
                     <th
-                        ><button style="margin-bottom:0px;white-space: nowrap;"
+                        ><button style="margin-bottom:0px;"
                             class="p-button--positive"
                             on:click={downloadAll}
                         >
