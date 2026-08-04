@@ -194,7 +194,9 @@ const FlagDB2 = {
               </div>
               {#if showInofOfStatus}
                 <div in:fade="{{ duration: 400 }}" style="padding-left: 1rem; color: #666;">
-                  <p>仅记录哪个下载了，以标记为“下过了”，避免重复下载。不同板块记录不互通。重置后立即生效，此操作不可逆！</p><p><button class="p-button--negative" on:click={()=>{FlagDB2.clear();reset=!reset;}}>重置</button></p>
+                  <p>仅记录哪个下载了，以标记为“下过了”，避免重复下载。不同板块记录不互通。重置后立即生效，此操作不可逆！</p><p><button class="p-button--negative" on:click={()=>{FlagDB2.clear();reset=!reset;}}>重置全部</button>
+                  <button class="p-button--negative" on:click={()=>{for(let i =0;i<result.length;i++){FlagDB2.delete(getId(result[i].url))};;reset=!reset;}}>重置本页</button>
+                  </p>
                 </div>
               {/if}
     </div>
