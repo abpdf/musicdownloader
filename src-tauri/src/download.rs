@@ -120,6 +120,9 @@ pub fn download_file(app_handle: tauri::AppHandle,url: &str, name: &str) -> Stri
                         return format!("❌ 读取响应数据失败: {}", e);
                     }
                 };
+                if bytes.is_empty() {
+                    return "歌曲无内容，可能是无音源".to_string();
+                }
                 #[cfg(not(target_os = "android"))]
                 match File::create(&file_path) {
                     Ok(mut file) => {
