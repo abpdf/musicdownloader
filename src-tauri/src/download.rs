@@ -9,6 +9,46 @@ use std::io::Write;
 use tauri_plugin_android_fs::{AndroidFsExt, PublicAudioDir};
 
 #[tauri::command]
+pub async fn download_file_async_without_redirect(
+    app_handle: tauri::AppHandle,
+    url: String,
+    name: String,
+) -> String {
+    let result = tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        let client = Client::builder()
+            .redirect(reqwest::redirect::Policy::none())
+            .build()
+            .map_err(|e| format!("构建HTTP客户端失败: {}", e))?;
+
+        let response = client
+            .head(&url)
+            .send()
+            .map_err(|e| format!("HEAD请求失败: {}", e))?;
+
+        let status = response.status();
+        if !status.is_redirection() {
+            return Err(format!("未返回重定向，状态码: {}", status));
+        }
+
+        let location = response
+            .headers()
+            .get(reqwest::header::LOCATION)
+            .ok_or_else(|| "响应中缺少Location头".to_string())?
+            .to_str()
+            .map_err(|e| format!("Location头解析失败: {}", e))?;
+
+        Ok(location.to_string())
+    })
+    .await;
+
+    match result {
+        Ok(Ok(final_url)) => download_file_async(app_handle, final_url, name).await,
+        Ok(Err(err_msg)) => err_msg,
+        Err(join_err) => format!("内部任务执行失败: {}", join_err),
+    }
+}
+
+#[tauri::command]
 pub async fn download_file_async(app_handle: tauri::AppHandle, url: String, name: String) -> String {
     let result = tauri::async_runtime::spawn_blocking(move || {
         download_file(app_handle, &url, &name)

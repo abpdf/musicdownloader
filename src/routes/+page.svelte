@@ -28,11 +28,12 @@
             <h2 class="p-heading--2">通过 祈杰のMeting-API 下载</h2>
             <button class="p-button--positive" onclick={()=>{page.num = 2} }>开始</button>
           </div>
-        </div>
+       
           <div class="p-card--highlighted" style="padding: 2rem;">
             <h2 class="p-heading--2">从gequhai下载</h2>
             <a class="p-button--positive" href="https://www.gequhai.com">开始</a>
           </div>
+           </div>
 
 
       {:else if page.num == 1}

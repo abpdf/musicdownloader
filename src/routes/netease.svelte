@@ -47,6 +47,8 @@ const FlagDB2 = {
     let reset =$state(false);
     let queue = [];
     let searchInfo=$state("");
+    let br = $state(+localStorage.getItem("br")||320);
+    let availableBr=[2000,320,192,128]
 
     async function search() {
         result = [];
@@ -78,11 +80,6 @@ const FlagDB2 = {
     function getId(url){
         const parsed = new URL(url);
         return parsed.searchParams.get('id');
-    }
-    async function getFinalMp3Url(apiUrl) {
-        const response = await fetch(apiUrl, { method: "HEAD" });
-        // response.url 此时就是最后的 MP3 直链，没有下载任何文件内容
-        return response.url;
     }
 
     function addQueue(a) {
@@ -123,9 +120,9 @@ const FlagDB2 = {
 
     async function download(u) {
         u.status = "downloading";
-        const finalurl = await getFinalMp3Url(u.url);
-        const status = await invoke("download_file_async", {
-            url: finalurl,
+        console.log(u.url+`&br=${br}`);
+        const status = await invoke("download_file_async_without_redirect", {
+            url: u.url+`&br=${br}`,
             name: sanitizeFileName(u.name + "-" + u.artist),
         });
         if (status==="Done"){
@@ -176,8 +173,18 @@ const FlagDB2 = {
             tabindex="0"
         />
     </div>
-
-    <div style="margin-bottom: 0.5rem;">
+    <div>
+    <p style="margin-bottom:0px;">下载码率：
+        {#each availableBr as current}
+        {#if br === current}
+            <button class="p-button--positive" on:click={()=>{br=current;localStorage.setItem("br", current);}}>{current}</button>
+        {:else}
+            <button class="p-button" on:click={()=>{br=current;localStorage.setItem("br", current);}}>{current}</button>
+        {/if}
+        {/each}
+        </p>
+    </div>
+    <div>
               <div
                 style="cursor: pointer; user-select: none; display: flex; justify-content: space-between; align-items: center; padding: 0.5rem 0;"
                 on:click={() => { showInofOfStatus = !showInofOfStatus; }}
