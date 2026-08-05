@@ -90,7 +90,7 @@
             a["详情"] = await response.json();
         } catch (error) {
             a["详情"] = "" + error;
-        }        
+        }
     }
     function sanitizeFileName(name) {
         if (typeof name !== "string") return "";
@@ -248,7 +248,7 @@
     </div>
     <div>
         <p style="margin-bottom:0px;">
-            下载码率：
+            下载码率（kbps）：
             {#each availableBr as current}
                 {#if br === current}
                     <button
@@ -399,7 +399,9 @@
                                 ><button
                                     style="margin-bottom:0px;"
                                     class="p-button--positive"
-                                    on:click={()=>{downloadAll(result)}}
+                                    on:click={() => {
+                                        downloadAll(result);
+                                    }}
                                 >
                                     全部下载</button
                                 ></th
@@ -489,20 +491,25 @@
                                 <th>{current.name}</th>
                                 <td>{current.creator.nickname}</td>
                                 <td>
-                                    {#if current["详情"]===undefined}
+                                    {#if current["详情"] === undefined}
                                         <button
-                                            on:click={() => {getDetail(current);}}
+                                            on:click={() => {
+                                                getDetail(current);
+                                            }}
                                             class="p-button--base">展开</button
                                         >
                                     {:else if !Array.isArray(current["详情"])}
                                         <button
-                                            on:click={() => {getDetail(current);}}
-                                            class="p-button--nagative">重试</button
+                                            on:click={() => {
+                                                getDetail(current);
+                                            }}
+                                            class="p-button--nagative"
+                                            >重试</button
                                         >
                                     {/if}
                                 </td>
                             </tr>
-                            {#if !Array.isArray(current["详情"])&&current["详情"]!==undefined}
+                            {#if !Array.isArray(current["详情"]) && current["详情"] !== undefined}
                                 <tr style="border-top:0">
                                     <td colspan="3">
                                         <div class="p-notification--negative">
@@ -539,7 +546,13 @@
                                                         ><button
                                                             style="margin-bottom:0px;"
                                                             class="p-button--positive"
-                                                            on:click={()=>{downloadAll(current["详情"])}}
+                                                            on:click={() => {
+                                                                downloadAll(
+                                                                    current[
+                                                                        "详情"
+                                                                    ],
+                                                                );
+                                                            }}
                                                         >
                                                             全部下载</button
                                                         ></th
