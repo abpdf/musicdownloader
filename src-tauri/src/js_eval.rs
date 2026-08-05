@@ -7,6 +7,11 @@ pub fn inject() -> String {
                 return;
             }
             window.__mp3_injected = true;
+            
+            if (!location.href.startsWith('https://www.gequhai.com')) {
+                console.log('[Tauri] URL不匹配，当前地址：'+location.href);
+                return;
+            }
 
             // ====== 新增：拦截所有新窗口打开 ======
             // 拦截 <a target="_blank"> 点击
