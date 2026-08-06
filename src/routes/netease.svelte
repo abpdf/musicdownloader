@@ -63,7 +63,7 @@
             }
             result = await response.json();
         } catch (error) {
-            searchInfo = "" + error;
+            searchInfo = error.message || JSON.stringify(error);
         }
     }
     async function searchPlaylist() {
@@ -77,7 +77,7 @@
             }
             result = await response.json();
         } catch (error) {
-            searchInfo = "" + error;
+            searchInfo = error.message || JSON.stringify(error);
         }
     }
     async function getDetail(a) {
@@ -89,7 +89,7 @@
             }
             a["详情"] = await response.json();
         } catch (error) {
-            a["详情"] = "" + error;
+            a["详情"] = error.message || JSON.stringify(error);
         }
     }
     function sanitizeFileName(name) {
@@ -139,7 +139,7 @@
             try {
                 await download(queue[0]);
             } catch (error) {
-                queue[0].status = "" + error;
+                queue[0].status = error.message || JSON.stringify(error);
             }
             queue.shift();
         }
@@ -147,6 +147,10 @@
     }
 
     async function download(u) {
+        if (FlagDB2.get(getId(u.url)) === true){
+            u.status = "下过了";
+            return;
+        }
         u.status = "downloading";
         console.log(u.url + `&br=${br}`);
         const status = await invoke("download_file_async_without_redirect", {
@@ -157,6 +161,36 @@
             FlagDB2.set(getId(u.url), true);
         }
         u.status = status;
+    }
+    async function getTopPlaylist() {
+        result = [];
+        searchInfo = "";
+        const url = `https://163api.qijieya.cn/top/playlist?&limit=${limit}`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
+            }
+            result = {result:await response.json()};
+        } catch (error) {
+            searchInfo = error.message || JSON.stringify(error);
+        }
+    }
+    async function getHotPlaylist() {
+        result = [];
+        searchInfo = "";
+        const url = `https://163api.qijieya.cn/playlist/hot`;
+        try {
+            const response = await fetch(url);
+            if (!response.ok) {
+                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
+            }
+            result = {result:{playlists:(await response.json()).tags}};
+
+            console.log(result)
+        } catch (error) {
+            searchInfo = error.message || JSON.stringify(error);
+        }
     }
 </script>
 
@@ -383,6 +417,17 @@
         </div>
     {/if}
     {#key reset}
+        {#if result.length === 0&&searchType === "歌单"}
+            <div class="p-notification--information">
+                <div class="p-notification__content">
+                    <h5 class="p-notification__title">搜索歌单</h5>
+                    <p class="p-notification__message">你也可以查看 
+                        <button class="p-button" on:click={getHotPlaylist}>官方热门歌单</button>
+                        <button class="p-button" on:click={getTopPlaylist}>网友精选</button>
+                    </p>
+                </div>
+            </div>
+        {/if}
         {#if result.length !== 0}
             <hr
                 class="p-divider"
@@ -414,7 +459,7 @@
                                 <th>{a.name}</th>
                                 <td>{a.artist}</td>
                                 <td>
-                                    {#if FlagDB2.get(getId(a.url)) === true}
+                                    {#if FlagDB2.get(getId(a.url)) === true && a.status==="下过了"}
                                         <div class="p-status-label--positive">
                                             下过了
                                         </div>
@@ -489,14 +534,14 @@
                         {#each result.result.playlists as current}
                             <tr>
                                 <th>{current.name}</th>
-                                <td>{current.creator.nickname}</td>
+                                <td>{current.creator===undefined?"":current.creator.nickname}</td>
                                 <td>
                                     {#if current["详情"] === undefined}
                                         <button
                                             on:click={() => {
                                                 getDetail(current);
                                             }}
-                                            class="p-button--base">展开</button
+                                            class="p-button--base has-icon"><span>展开<i class="p-icon--chevron-down"></i></button
                                         >
                                     {:else if !Array.isArray(current["详情"])}
                                         <button
@@ -565,7 +610,7 @@
                                                         <th>{a.name}</th>
                                                         <td>{a.artist}</td>
                                                         <td>
-                                                            {#if FlagDB2.get(getId(a.url)) === true}
+                                                            {#if FlagDB2.get(getId(a.url)) === true && a.status==="下过了"}
                                                                 <div
                                                                     class="p-status-label--positive"
                                                                 >
