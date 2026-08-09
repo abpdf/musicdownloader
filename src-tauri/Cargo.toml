@@ -1,6 +1,6 @@
 [package]
 name = "musicdownloader"
-version = "1.1.0"
+version = "1.1.1"
 description = "A Tauri App"
 authors = ["j-h-y@outlook.com"]
 edition = "2021"
