@@ -36,6 +36,7 @@
         },
     };
 
+    import { tick } from "svelte";
     import { page } from "./page.svelte.js";
     import { fade } from "svelte/transition";
     import { invoke } from "@tauri-apps/api/core";
@@ -44,6 +45,7 @@
     let limit = $state(30);
     let showInofOfStatus = $state(false);
     let isBusy = $state(false);
+    let isSearch = $state(false);
     let reset = $state(false);
     let queue = [];
     let searchInfo = $state("");
@@ -52,7 +54,14 @@
     let searchType = $state("单曲");
     let availablesSearchType = ["单曲", "歌单"];
 
+    const listeners = []; // 记录 { target, type, listener, options }
+    const observers = []; // 记录 IntersectionObserver 实例
+
+    const origAdd = EventTarget.prototype.addEventListener;
+    const origObserver = window.IntersectionObserver;
+
     async function search() {
+        isSearch = true;
         result = [];
         searchInfo = "";
         const url = `https://api.qijieya.cn/meting/?type=search&id=${encodeURIComponent(name)}&limit=${limit}&server=netease`;
@@ -65,20 +74,26 @@
         } catch (error) {
             searchInfo = error.message || JSON.stringify(error);
         }
+        isSearch = false;
     }
     async function searchPlaylist() {
+        isSearch = true;
         result = [];
         searchInfo = "";
-        const url = `https://163api.qijieya.cn/cloudsearch?keywords=${encodeURIComponent(name)}&limit=${limit}&type=1000`;
         try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
-            }
-            result = await response.json();
+            const jsonString = await invoke("cloud_search", {
+                keywords: name,
+                t: "1000",
+                limit: "" + limit,
+            });
+            result = JSON.parse(jsonString);
         } catch (error) {
-            searchInfo = error.message || JSON.stringify(error);
+            searchInfo =
+                typeof error === "string"
+                    ? error
+                    : error.message || JSON.stringify(error);
         }
+        isSearch = false;
     }
     async function getDetail(a) {
         const url = `https://api.qijieya.cn/meting/?type=playlist&id=${a.id}`;
@@ -147,7 +162,7 @@
     }
 
     async function download(u) {
-        if (FlagDB2.get(getId(u.url)) === true){
+        if (FlagDB2.get(getId(u.url)) === true) {
             u.status = "下过了";
             return;
         }
@@ -163,33 +178,617 @@
         u.status = status;
     }
     async function getTopPlaylist() {
+        isSearch = true;
         result = [];
         searchInfo = "";
-        const url = `https://163api.qijieya.cn/top/playlist?&limit=${limit}`;
         try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
-            }
-            result = {result:await response.json()};
+            const jsonString = await invoke("top_playlist", {
+                limit: "" + limit,
+            });
+            result = { result: JSON.parse(jsonString) };
         } catch (error) {
-            searchInfo = error.message || JSON.stringify(error);
+            searchInfo =
+                typeof error === "string"
+                    ? error
+                    : error.message || JSON.stringify(error);
         }
+        isSearch = false;
     }
     async function getHotPlaylist() {
+        isSearch = true;
         result = [];
         searchInfo = "";
-        const url = `https://163api.qijieya.cn/playlist/hot`;
         try {
-            const response = await fetch(url);
-            if (!response.ok) {
-                throw new Error(`HTTP 错误! 状态码: ${response.status}`);
-            }
-            result = {result:{playlists:(await response.json()).tags}};
-
-            console.log(result)
+            const jsonString = await invoke("playlist_hot");
+            const data = JSON.parse(jsonString);
+            result = { result: { playlists: data.tags } };
+            console.log(result);
         } catch (error) {
-            searchInfo = error.message || JSON.stringify(error);
+            searchInfo =
+                typeof error === "string"
+                    ? error
+                    : error.message || JSON.stringify(error);
+        }
+        isSearch = false;
+    }
+
+    let clean = $state();
+    $effect(() => {
+        // 依赖数据，当 playlists 有内容时（重新）初始化
+        if (
+            result?.result?.playlists?.length > 0 &&
+            !clean &&
+            searchType === "歌单"
+        ) {
+            tick().then(() => {
+                clean = createCleanupWrapper();
+            });
+        }
+        if (result.length === 0) {
+            tick().then(() => {
+                if (clean) {
+                    clean();
+                    clean = "";
+                }
+            });
+        }
+    });
+
+    function createCleanupWrapper() {
+        // 劫持 addEventListener
+        EventTarget.prototype.addEventListener = function (
+            type,
+            listener,
+            options,
+        ) {
+            listeners.push({ target: this, type, listener, options });
+            return origAdd.call(this, type, listener, options);
+        };
+
+        // 劫持 IntersectionObserver 构造函数
+        window.IntersectionObserver = class extends origObserver {
+            constructor(callback, options) {
+                super(callback, options);
+                observers.push(this);
+            }
+        };
+
+        // 执行初始化
+        const documentBody = document.querySelector("body");
+        const navRoots = documentBody.querySelectorAll(".p-in-page-navigation");
+        navRoots.forEach((navRoot) => {
+            buildInPageNavigation(navRoot);
+            initNavigationInteraction(navRoot);
+        });
+
+        // 恢复原方法
+        EventTarget.prototype.addEventListener = origAdd;
+        window.IntersectionObserver = origObserver;
+
+        // 返回销毁函数
+        return () => {
+            // 移除所有事件监听
+            listeners.forEach(({ target, type, listener, options }) => {
+                target.removeEventListener(type, listener, options);
+            });
+            // 断开所有观察器
+            observers.forEach((obs) => obs.disconnect());
+        };
+    }
+
+    /**
+     * Init:
+     *  - Generates in-page navigation if scope is set to "full-page".
+     *  - Initializes navigation interactions.
+     */
+
+    /**
+     * Build the navigation list from page headings.
+     * @param {HTMLElement} navRoot - The .p-in-page-navigation element
+     */
+    function buildInPageNavigation(navRoot) {
+        if (!navRoot) {
+            return;
+        }
+
+        // If not full-page, assume manual navigation structure
+        const scope = navRoot.dataset.inPageNavigationScope;
+        if (scope !== "full-page") {
+            return;
+        }
+
+        const selectors = generateSelectors(navRoot);
+        const headings = getHeadings(navRoot, selectors);
+        if (!headings.length) {
+            return;
+        }
+
+        const navList = navRoot.querySelector(".js-in-page-nav-list");
+        const itemTemplate = document.querySelector(
+            ".js-in-page-nav-template-item",
+        );
+        const sublistTemplate = document.querySelector(
+            ".js-in-page-nav-template-sublist",
+        );
+        let currentPrimaryItem = null;
+        let currentNestedList = null;
+        let isFirst = true;
+
+        headings.forEach((heading) => {
+            const id = generateHeadingId(heading);
+            const text = heading.textContent.trim().replace(/\s+/g, " "); // Remove whitespace
+            const tooltipId = `${id}-tooltip`;
+            const isPrimaryList = heading.matches(selectors.primarySelector);
+            const itemClone = itemTemplate.content.cloneNode(true);
+            const li = itemClone.querySelector("li");
+            const link = itemClone.querySelector("a");
+            const tooltipWrapper = itemClone.querySelector(".p-tooltip--right");
+            const tooltipMessage = itemClone.querySelector(
+                ".p-tooltip__message",
+            );
+
+            link.href = `#${id}`;
+            link.textContent = text;
+            tooltipWrapper.setAttribute("aria-describedby", tooltipId);
+            tooltipMessage.id = tooltipId;
+            tooltipMessage.textContent = text;
+
+            if (isFirst) {
+                link.classList.add("is-active");
+                isFirst = false;
+            }
+
+            if (isPrimaryList) {
+                // Append to main list
+                navList.appendChild(li);
+                currentPrimaryItem = li;
+                currentNestedList = null;
+            } else if (selectors.secondarySelector && currentPrimaryItem) {
+                // Append to sublist under current primary list
+                if (!currentNestedList) {
+                    const nestedListClone =
+                        sublistTemplate.content.cloneNode(true);
+                    currentNestedList = nestedListClone.querySelector("ul");
+                    currentPrimaryItem.appendChild(currentNestedList);
+                }
+                if (currentNestedList) {
+                    currentNestedList.appendChild(li);
+                }
+            } else {
+                navList.appendChild(li);
+            }
+        });
+    }
+
+    /**
+     * Initializes navigation interactions:
+     *  - Dropdown toggle for mobile view
+     *  - Intersection observer to highlight active section in navigation
+     * @param {HTMLElement} navRoot - The .p-in-page-navigation element
+     */
+    function initNavigationInteraction(navRoot) {
+        const toggle = navRoot.querySelector(
+            ".p-in-page-navigation__dropdown-toggle",
+        );
+        const navList = navRoot.querySelector(".js-in-page-nav-list");
+
+        if (toggle && navList) {
+            toggle.addEventListener("click", function () {
+                if (toggle.getAttribute("aria-expanded") === "true") {
+                    navRoot.classList.remove("is-expanded");
+                    toggle.setAttribute("aria-expanded", "false");
+                    navList.setAttribute("aria-expanded", "false");
+                    toggle
+                        .querySelector(".p-icon--chevron-down")
+                        .classList.remove("u-hide");
+                    toggle
+                        .querySelector(".p-icon--chevron-up")
+                        .classList.add("u-hide");
+                    // Ensure active item is visible in horizontal layout
+                    scrollActiveNavItemIntoView();
+                } else {
+                    navRoot.classList.add("is-expanded");
+                    toggle.setAttribute("aria-expanded", "true");
+                    navList.setAttribute("aria-expanded", "true");
+                    toggle
+                        .querySelector(".p-icon--chevron-down")
+                        .classList.add("u-hide");
+                    toggle
+                        .querySelector(".p-icon--chevron-up")
+                        .classList.remove("u-hide");
+                }
+            });
+        }
+
+        const selectors = generateSelectors(navRoot);
+        const headings = getHeadings(navRoot, selectors);
+        const navigationLinks = getNavigationLinks(navRoot);
+
+        /**
+         * Updates the active navigation link based on the given heading ID.
+         * Also scrolls the active link into view if it's in horizontal layout.
+         * @param {string} headingId - The ID of the currently active heading.
+         */
+        function updateActiveLink(headingId) {
+            const targetLink = navRoot.querySelector(`a[href='#${headingId}']`);
+            // Ignore links that are hidden in horizontal layout
+            const parentList = targetLink
+                ? targetLink.closest(".p-in-page-navigation__list")
+                : null;
+
+            if (
+                !targetLink ||
+                !parentList ||
+                window.getComputedStyle(parentList, null).display === "none"
+            ) {
+                return;
+            }
+
+            navigationLinks.forEach((link) => {
+                if (link.getAttribute("href") === `#${headingId}`) {
+                    link.classList.add("is-active");
+                    scrollActiveNavItemIntoView(link);
+                } else {
+                    link.classList.remove("is-active");
+                }
+            });
+        }
+
+        const BREAKPOINTLARGE = 1036;
+        let observer;
+        let lastViewportState = null;
+
+        function manageObserver() {
+            const isLargeView = getCurrentViewportWidth() >= BREAKPOINTLARGE;
+
+            // Prevent recreating the observer if state hasn't changed
+            if (lastViewportState === isLargeView) {
+                return;
+            }
+            lastViewportState = isLargeView;
+
+            // Cleanup existing observer
+            if (observer) observer.disconnect();
+
+            observer = new IntersectionObserver(
+                function (entries) {
+                    if (
+                        typeof navItemClicked !== "undefined" &&
+                        navItemClicked
+                    ) {
+                        return;
+                    }
+                    entries.forEach((entry) => {
+                        if (entry.isIntersecting) {
+                            updateActiveLink(entry.target.id);
+                        }
+                    });
+                },
+                {
+                    rootMargin: isLargeView
+                        ? "-10% 0px -50% 0px"
+                        : "-10% 0px -75% 0px",
+                    threshold: 0.5,
+                },
+            );
+
+            headings.forEach((heading) => observer.observe(heading));
+        }
+
+        // Initialize observer
+        manageObserver();
+
+        // Update observer rootMargins on viewport resize
+        window.addEventListener("resize", debounce(manageObserver, 250));
+
+        // Handle navigation link clicks
+        let navItemClicked = false;
+        navigationLinks.forEach(function (link) {
+            link.addEventListener("click", function (e) {
+                e.preventDefault();
+                navItemClicked = true;
+
+                // Handle active state
+                navigationLinks.forEach(function (navLink) {
+                    navLink.classList.remove("is-active");
+                });
+                link.classList.add("is-active");
+
+                // Handle smooth scroll
+                const targetId = link.getAttribute("href");
+                const targetHeading = document.querySelector(targetId);
+                if (targetHeading) {
+                    targetHeading.setAttribute("tabindex", "-1");
+                    targetHeading.focus({
+                        preventScroll: true,
+                    });
+                    targetHeading.scrollIntoView({
+                        behavior: "smooth",
+                    });
+                    history.pushState(null, null, targetId);
+                }
+                // We use a timeout to prevent the IntersectionObserver from immediately
+                // overriding the active state. As the IntersectionObserver points at the
+                // center of the screen
+                setTimeout(() => {
+                    navItemClicked = false;
+                }, 1000);
+            });
+        });
+
+        // Show tooltip for links that span more than 2
+        navigationLinks.forEach(function (link) {
+            if (spansMoreThanTwoLines(link)) {
+                const linkContainer = link.parentNode;
+                const tooltip = linkContainer.querySelector(
+                    ".p-tooltip__message",
+                );
+                tooltip.classList.remove("u-hide");
+                attachPositionTooltipListener(linkContainer);
+            }
+        });
+    }
+
+    // Helper functions
+
+    /**
+     * Returns headings to be included in navigation.
+     * @param {HTMLElement} navRoot
+     * @returns {NodeList} List of heading elements matching the defined selectors
+     */
+    function getHeadings(navRoot, selectors) {
+        const headings = Array.from(document.querySelectorAll(selectors.query));
+        const excludes = getHeadingExcludes(navRoot, headings);
+        return headings.filter((heading) => !excludes.includes(heading));
+    }
+
+    /**
+     * Parse exclusion rules and return a list of excluded heading elements.
+     * Supports two formats:
+     *   - CSS selector (e.g. "#some-id", ".some-class")
+     *   - Text match (e.g. "text:Newsletter signup") - case-insensitive
+     * @param {HTMLElement} navRoot
+     * @param {NodeList} headings - all headings being considered
+     * @returns {HTMLElement[]} List of heading elements to exclude
+     */
+    function getHeadingExcludes(navRoot, headings) {
+        const excludeAttr = navRoot.dataset.inPageNavigationExcludes;
+        if (!excludeAttr) {
+            return [];
+        }
+
+        const excludeRules = excludeAttr
+            .trim()
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        const excludeList = [];
+
+        excludeRules.forEach((rule) => {
+            if (rule.toLowerCase().startsWith("text:")) {
+                // Text-based exclusion
+                const textToMatch = rule.split("text:")[1].trim().toLowerCase();
+                headings.forEach((heading) => {
+                    if (
+                        heading.textContent.trim().toLowerCase() === textToMatch
+                    ) {
+                        excludeList.push(heading);
+                    }
+                });
+            } else {
+                // CSS selector exclusion
+                try {
+                    const matched = document.querySelector(rule);
+                    if (matched) {
+                        excludeList.push(matched);
+                    }
+                } catch (e) {
+                    console.warn(
+                        `In-page navigation: Invalid exclude selector "${rule}"`,
+                    );
+                }
+            }
+        });
+        return excludeList;
+    }
+
+    /**
+     * Generate CSS selectors for query based heading retrieval.
+     * @param {HTMLElement} navRoot
+     * @returns {Object} An object containing primarySelector, secondarySelector, and a query string
+     */
+    function generateSelectors(navRoot) {
+        const primarySelector = navRoot.dataset.inPageNavigationPrimary;
+        const secondarySelector =
+            navRoot.dataset.inPageNavigationSecondary ?? null;
+        const query = secondarySelector
+            ? `${primarySelector}, ${secondarySelector}`
+            : primarySelector;
+        return {
+            primarySelector,
+            secondarySelector,
+            query,
+        };
+    }
+
+    /**
+     * Checks for heading ID and generates on from text content if missing
+     * @param {HTMLElement} heading
+     * @returns {string} The heading ID
+     */
+    function generateHeadingId(heading) {
+        if (heading.id && !document.getElementById(heading.id)) {
+            return heading.id;
+        }
+
+        let baseId = slugify(heading.textContent);
+        let id = baseId;
+
+        // Handle duplicate IDs
+        let counter = 1;
+        while (document.getElementById(id)) {
+            appendix = counter == 1 ? "" : `-${counter}`;
+            id = baseId + appendix;
+            counter++;
+        }
+
+        heading.id = id;
+        return id;
+    }
+
+    /**
+     * Returns all navigation links within the given navigation root.
+     * @param {HTMLElement} navRoot
+     * @returns {NodeList} List of navigation link elements
+     */
+    function getNavigationLinks(navRoot) {
+        return navRoot.querySelectorAll(".p-in-page-navigation__link");
+    }
+
+    /**
+     * Converts a string to a href friendly slug.
+     * @param {string} text - The text content of the heading
+     * @return {string} A slugified version of the text
+     */
+    function slugify(text) {
+        return text
+            .toString()
+            .toLowerCase()
+            .trim()
+            .replace(/\s+/g, "-")
+            .replace(/[^\w-]+/g, "")
+            .replace(/--+/g, "-")
+            .replace(/^-+/, "")
+            .replace(/-+$/, "");
+    }
+
+    /**
+     * Checks if the content of an element would span more than 2 lines if not truncated
+     * To do this we have to recreate the original height without clamping
+     * and then check the number of lines.
+     * @param {HTMLElement} element
+     * @returns {boolean} True if the content would be more than 2 lines, else false.
+     */
+    function spansMoreThanTwoLines(element) {
+        const originalDisplay = element.style.display;
+        const originalLineClamp = element.style.webkitLineClamp;
+
+        element.style.display = "block";
+        element.style.webkitLineClamp = "unset";
+
+        const style = window.getComputedStyle(element);
+        const lineHeight = parseFloat(style.lineHeight);
+        const height = element.getBoundingClientRect().height;
+
+        // Restore original styles
+        element.style.display = originalDisplay;
+        element.style.webkitLineClamp = originalLineClamp;
+
+        return height > lineHeight * 3;
+    }
+
+    /**
+     * Scrolls the active navigation item into view in horizontal layout.
+     * @param {HTMLElement} link - The active navigation link
+     */
+    function scrollActiveNavItemIntoViewOld(link) {
+        if (!link) {
+            link = document.querySelector(
+                ".p-in-page-navigation__link.is-active",
+            );
+        }
+        const listItem = link.closest(".p-in-page-navigation__item");
+        if (listItem) {
+            listItem.scrollIntoView({
+                behavior: "smooth",
+                block: "start",
+                inline: "start",
+            });
+        }
+    }
+
+    /**
+     * Returns the current viewport width.
+     * @returns {number} The width of the viewport in pixels
+     */
+    function getCurrentViewportWidth() {
+        return Math.max(
+            document.documentElement.clientWidth || 0,
+            window.innerWidth || 0,
+        );
+    }
+
+    /**
+     * Position tooltips in scrollable navigation using fixed positioning.
+     * This is is a workaround as the tooltips are contained in an overflow:auto container
+     * that allows the navigation to be scrollable. This means the tooltip would usually get clipped.
+     * So we manually position the tooltip with JS. If JS is disabled, so are tooltips.
+     * @param {HTMLElement} tooltipContainer - The .p-tooltip element
+     */
+    function attachPositionTooltipListener(tooltipContainer) {
+        const tooltipMessage = tooltipContainer.querySelector(
+            ".p-tooltip__message",
+        );
+        if (!tooltipMessage) return;
+
+        // One hover update the tooltip position property to be used in CSS
+        tooltipContainer.addEventListener("mouseenter", function () {
+            const rect = tooltipContainer.getBoundingClientRect();
+            tooltipMessage.style.setProperty(
+                "--tooltip-left",
+                `${rect.right + 8}px`,
+            );
+            tooltipMessage.style.setProperty(
+                "--tooltip-top",
+                `${rect.top + 24}px`,
+            );
+        });
+    }
+
+    /**
+     * Debounce helper
+     * @param {Function} func - The function to debounce
+     * @param {number} wait - The debounce delay in milliseconds
+     * @return {Function} A debounced version of the input function
+     */
+    function debounce(func, wait) {
+        let timeout;
+        return function (...args) {
+            const context = this;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+
+    let scrollTimer = null;
+    let pendingLink = null;
+
+    function onScrollStop() {
+        // 滚动停止 150ms 后执行
+        if (pendingLink) {
+            scrollActiveNavItemIntoViewOld(pendingLink);
+            pendingLink = null;
+        }
+        // 任务完成，移除 scroll 监听，彻底清空
+        window.removeEventListener("scroll", onScroll);
+        scrollTimer = null;
+    }
+
+    function onScroll() {
+        // 每次滚动都重置“停止检测”定时器
+        clearTimeout(scrollTimer);
+        scrollTimer = setTimeout(onScrollStop, 150);
+    }
+
+    function scrollActiveNavItemIntoView(link) {
+        // 保存最新的 link
+        pendingLink = link;
+
+        // 如果 scroll 监听还没加上，就加上
+        if (!scrollTimer) {
+            window.addEventListener("scroll", onScroll, { passive: true });
+            // 立刻启动一次“停止检测”定时器，防止用户调用后完全不滚动
+            scrollTimer = setTimeout(onScrollStop, 150);
         }
     }
 </script>
@@ -200,7 +799,7 @@
         on:click={() => {
             page.num = 0;
         }}
-        disabled={isBusy}>← 返回</button
+        disabled={isBusy || isSearch}>← 返回</button
     >
 </div>
 <div class="p-card--highlighted" style="padding: 2rem;">
@@ -221,7 +820,7 @@
                 type="submit"
                 class="p-search-box__button"
                 on:click={search}
-                disabled={isBusy}
+                disabled={isBusy || isSearch}
             >
                 <i class="p-icon--search">Search</i>
             </button>
@@ -230,7 +829,7 @@
                 type="submit"
                 class="p-search-box__button"
                 on:click={searchPlaylist}
-                disabled={isBusy}
+                disabled={isBusy || isSearch}
             >
                 <i class="p-icon--search">Search</i>
             </button>
@@ -246,7 +845,7 @@
                         on:click={() => {
                             searchType = current;
                         }}
-                        disabled={isBusy}>{current}</button
+                        disabled={isBusy || isSearch}>{current}</button
                     >
                 {:else}
                     <button
@@ -255,7 +854,7 @@
                             searchType = current;
                             result = [];
                         }}
-                        disabled={isBusy}>{current}</button
+                        disabled={isBusy || isSearch}>{current}</button
                     >
                 {/if}
             {/each}
@@ -416,113 +1015,123 @@
             </div>
         </div>
     {/if}
-    {#key reset}
-        {#if result.length === 0&&searchType === "歌单"}
-            <div class="p-notification--information">
-                <div class="p-notification__content">
-                    <h5 class="p-notification__title">搜索歌单</h5>
-                    <p class="p-notification__message">你也可以查看 
-                        <button class="p-button" on:click={getHotPlaylist}>官方热门歌单</button>
-                        <button class="p-button" on:click={getTopPlaylist}>网友精选</button>
-                    </p>
-                </div>
-            </div>
-        {/if}
-        {#if result.length !== 0}
-            <hr
-                class="p-divider"
-                style="margin-top: 0.5rem;margin-bottom: 0.5rem;"
-            />
 
-            {#if searchType === "单曲"}
-                <table>
-                    <thead>
+    {#if result.length === 0 && searchType === "歌单" && isSearch === false}
+        <div class="p-notification--information">
+            <div class="p-notification__content">
+                <h5 class="p-notification__title">搜索歌单</h5>
+                <p class="p-notification__message">
+                    搜索歌单的API由本地提供，你可以搜索歌单名和创建者的名字<br/>
+                    你也可以查看：<br /><br />
+                    <button class="p-button" on:click={getHotPlaylist} disabled={isBusy || isSearch}>
+                        官方热门歌单
+                    </button>
+                    <button class="p-button" on:click={getTopPlaylist} disabled={isBusy || isSearch}>
+                        网友精选
+                    </button>
+                </p>
+            </div>
+        </div>
+    {/if}
+</div>
+
+{#if result.length !== 0}
+    {#if searchType === "单曲"}
+        <table style="margin-top:2rem;">
+            <thead>
+                <tr>
+                    <th class="p-heading--5">歌曲名</th>
+                    <th class="p-heading--5">歌手</th>
+                    <th>
+                        <button style="margin-bottom:0px;" class="p-button--positive" on:click={() => { downloadAll(result); }}>
+                            全部下载
+                        </button>
+                    </th>
+                </tr>
+            </thead>
+            <tbody>
+                {#key reset}
+                    {#each result ?? [] as a}
                         <tr>
-                            <th class="p-heading--5">歌曲名</th>
-                            <th class="p-heading--5">歌手</th>
-                            <th
-                                ><button
-                                    style="margin-bottom:0px;"
-                                    class="p-button--positive"
-                                    on:click={() => {
-                                        downloadAll(result);
-                                    }}
-                                >
-                                    全部下载</button
-                                ></th
-                            >
+                            <th>{a.name}</th>
+                            <td>{a.artist}</td>
+                            <td>
+                                {#if a.status == "Done"}
+                                    <div class="p-status-label--positive">
+                                        成功
+                                    </div>
+                                {:else if FlagDB2.get(getId(a.url)) === true || a.status === "下过了"}
+                                    <div class="p-status-label--positive">
+                                        下过了
+                                    </div>
+                                {:else if !a.status}
+                                    <button style="margin-bottom:0px;" class="p-button" on:click={() => { addQueue(a); }}>
+                                        下载
+                                    </button >
+                                {:else if a.status == "downloading"}
+                                    <div class="p-status-label--information">
+                                        下载中
+                                    </div>
+                                {:else if a.status == "waiting"}
+                                    <div class="p-status-label">等待中</div>
+                                {:else}
+                                    <button style="margin-bottom:0px;" class="p-button--negative" on:click={() => { addQueue(a); }}>
+                                        重试
+                                    </button>
+                                {/if}
+                            </td>
                         </tr>
-                    </thead>
-                    <tbody>
-                        {#each result as a}
-                            <tr>
-                                <th>{a.name}</th>
-                                <td>{a.artist}</td>
-                                <td>
-                                    {#if FlagDB2.get(getId(a.url)) === true && a.status==="下过了"}
-                                        <div class="p-status-label--positive">
-                                            下过了
+                        {#if FlagDB2.get(getId(a.url)) !== true && !!a.status && a.status !== "downloading" && a.status !== "waiting" && a.status !== "Done"}
+                            <tr style="border-top:0">
+                                <td colspan="3">
+                                    <div class="p-notification--negative">
+                                        <div class="p-notification__content">
+                                            <h5 class="p-notification__title">
+                                                出错了
+                                            </h5>
+                                            <p class="p-notification__message">
+                                                {a.status}
+                                            </p>
                                         </div>
-                                    {:else if !a.status}
-                                        <button
-                                            style="margin-bottom:0px;"
-                                            class="p-button"
-                                            on:click={() => {
-                                                addQueue(a);
-                                            }}>下载</button
-                                        >
-                                    {:else if a.status == "downloading"}
-                                        <div
-                                            class="p-status-label--information"
-                                        >
-                                            下载中
-                                        </div>
-                                    {:else if a.status == "waiting"}
-                                        <div class="p-status-label">等待中</div>
-                                    {:else if a.status == "Done"}
-                                        <div class="p-status-label--positive">
-                                            成功
-                                        </div>
-                                    {:else}
-                                        <button
-                                            style="margin-bottom:0px;"
-                                            class="p-button--negative"
-                                            on:click={() => {
-                                                addQueue(a);
-                                            }}>重试</button
-                                        >
-                                    {/if}
+                                    </div>
                                 </td>
                             </tr>
-                            {#if FlagDB2.get(getId(a.url)) !== true && !!a.status && a.status !== "downloading" && a.status !== "waiting" && a.status !== "Done"}
-                                <tr style="border-top:0"
-                                    ><td colspan="3">
-                                        <div class="p-notification--negative">
-                                            <div
-                                                class="p-notification__content"
-                                            >
-                                                <h5
-                                                    class="p-notification__title"
-                                                >
-                                                    出错了
-                                                </h5>
-                                                <p
-                                                    class="p-notification__message"
-                                                >
-                                                    {a.status}
-                                                </p>
-                                            </div>
-                                        </div></td
-                                    ></tr
-                                >
-                            {/if}
-                        {/each}
-                    </tbody>
-                </table>
-            {/if}
+                        {/if}
+                    {/each}
+                {/key}
+            </tbody>
+        </table>
+    {/if}
 
-            {#if searchType === "歌单"}
-                <table>
+    {#if searchType === "歌单"}
+        <div class="grid-row">
+            <div class="grid-col-2">
+                <div class="p-in-page-navigation" data-in-page-navigation-scope="manual" data-in-page-navigation-primary=".h" data-in-page-navigation-excludes=",.p-in-page-navigation__heading" >
+                    <nav class="p-in-page-navigation__container" aria-label="In-page navigation" style="padding-top: 1rem;">
+                        <ul class="p-in-page-navigation__list js-in-page-nav-list" id="in-page-navigation-list" aria-expanded="false">
+                            {#each result?.result?.playlists ?? [] as playlist}
+                                <li class="p-in-page-navigation__item p-tooltip--right" aria-describedby="h{playlist.id}-tooltip" >
+                                    <a class="p-in-page-navigation__link" href="#h{playlist.id}" >
+                                        {playlist.name}
+                                    </a>
+                                    <span class="p-tooltip__message u-hide" role="tooltip" id="h{playlist.id}-tooltip" >
+                                        {playlist.name}
+                                    </span>
+                                </li>
+                            {/each}
+                        </ul>
+
+                        <button class="p-in-page-navigation__dropdown-toggle" aria-expanded="false" aria-controls="in-page-navigation-list">
+                            <i class="p-icon--chevron-down p-in-page-navigation__dropdown-toggle-icon"></i>
+                            <i class="p-icon--chevron-up p-in-page-navigation__dropdown-toggle-icon u-hide"></i>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- 右侧内容区（4 列），根据 playlists 动态生成标题和内容 -->
+            <div class="grid-col-6">
+                <table style="margin-top: 1rem;">
                     <thead>
                         <tr>
                             <th class="p-heading--5">歌单名</th>
@@ -531,20 +1140,22 @@
                         </tr>
                     </thead>
                     <tbody>
-                        {#each result.result.playlists as current}
+                        {#each result?.result?.playlists ?? [] as current}
                             <tr>
-                                <th>{current.name}</th>
-                                <td>{current.creator===undefined?"":current.creator.nickname}</td>
+                                <td class="h" id="h{current.id}">
+                                    {current.name}
+                                </td>
+                                <td>
+                                    {current.creator === undefined ? "" : current.creator.nickname}
+                                </td>
                                 <td>
                                     {#if current["详情"] === undefined}
-                                        <button
-                                            on:click={() => {
-                                                getDetail(current);
-                                            }}
-                                            class="p-button--base has-icon"><span>展开<i class="p-icon--chevron-down"></i></button
-                                        >
+                                        <button style="margin-bottom:0px;" on:click={() => { getDetail(current);}} class="p-button--base">
+                                            展开
+                                        </button>
                                     {:else if !Array.isArray(current["详情"])}
                                         <button
+                                            style="margin-bottom:0px;"
                                             on:click={() => {
                                                 getDetail(current);
                                             }}
@@ -577,122 +1188,90 @@
                                 </tr>
                             {:else if Array.isArray(current["详情"])}
                                 <tr>
-                                    <td colspan="3">
-                                        <table>
-                                            <thead>
-                                                <tr>
-                                                    <th class="p-heading--5"
-                                                        >歌曲名</th
-                                                    >
-                                                    <th class="p-heading--5"
-                                                        >歌手</th
-                                                    >
-                                                    <th
-                                                        ><button
-                                                            style="margin-bottom:0px;"
-                                                            class="p-button--positive"
-                                                            on:click={() => {
-                                                                downloadAll(
-                                                                    current[
-                                                                        "详情"
-                                                                    ],
-                                                                );
-                                                            }}
-                                                        >
-                                                            全部下载</button
-                                                        ></th
-                                                    >
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                {#each current["详情"] as a}
-                                                    <tr>
-                                                        <th>{a.name}</th>
-                                                        <td>{a.artist}</td>
-                                                        <td>
-                                                            {#if FlagDB2.get(getId(a.url)) === true && a.status==="下过了"}
-                                                                <div
-                                                                    class="p-status-label--positive"
-                                                                >
-                                                                    下过了
-                                                                </div>
-                                                            {:else if !a.status}
-                                                                <button
-                                                                    style="margin-bottom:0px;"
-                                                                    class="p-button"
-                                                                    on:click={() => {
-                                                                        addQueue(
-                                                                            a,
-                                                                        );
-                                                                    }}
-                                                                    >下载</button
-                                                                >
-                                                            {:else if a.status == "downloading"}
-                                                                <div
-                                                                    class="p-status-label--information"
-                                                                >
-                                                                    下载中
-                                                                </div>
-                                                            {:else if a.status == "waiting"}
-                                                                <div
-                                                                    class="p-status-label"
-                                                                >
-                                                                    等待中
-                                                                </div>
-                                                            {:else if a.status == "Done"}
-                                                                <div
-                                                                    class="p-status-label--positive"
-                                                                >
-                                                                    成功
-                                                                </div>
-                                                            {:else}
-                                                                <button
-                                                                    style="margin-bottom:0px;"
-                                                                    class="p-button--negative"
-                                                                    on:click={() => {
-                                                                        addQueue(
-                                                                            a,
-                                                                        );
-                                                                    }}
-                                                                    >重试</button
-                                                                >
-                                                            {/if}
-                                                        </td>
-                                                    </tr>
-                                                    {#if FlagDB2.get(getId(a.url)) !== true && !!a.status && a.status !== "downloading" && a.status !== "waiting" && a.status !== "Done"}
-                                                        <tr style="border-top:0"
-                                                            ><td colspan="3">
-                                                                <div
-                                                                    class="p-notification--negative"
-                                                                >
-                                                                    <div
-                                                                        class="p-notification__content"
-                                                                    >
-                                                                        <h5
-                                                                            class="p-notification__title"
-                                                                        >
-                                                                            出错了
-                                                                        </h5>
-                                                                        <p
-                                                                            class="p-notification__message"
-                                                                        >
-                                                                            {a.status}
-                                                                        </p>
-                                                                    </div>
-                                                                </div></td
-                                                            ></tr
-                                                        >
-                                                    {/if}
-                                                {/each}
-                                            </tbody>
-                                        </table>
-                                    </td>
+                                    <td class="p-heading--5">歌曲名</td>
+                                    <td class="p-heading--5">歌手</td>
+                                    <td
+                                        ><button
+                                            style="margin-bottom:0px;"
+                                            class="p-button--positive"
+                                            on:click={() => {
+                                                downloadAll(current["详情"]);
+                                            }}
+                                        >
+                                            全部下载</button
+                                        ></td
+                                    >
                                 </tr>
+                                {#key reset}
+                                    {#each current["详情"] as a}
+                                        <tr>
+                                            <th>{a.name}</th>
+                                            <td>{a.artist}</td>
+                                            <td>
+                                                {#if a.status == "Done"}
+                                                    <div
+                                                        class="p-status-label--positive"
+                                                    >
+                                                        成功
+                                                    </div>
+                                                {:else if FlagDB2.get(getId(a.url)) === true || a.status === "下过了"}
+                                                    <div
+                                                        class="p-status-label--positive"
+                                                    >
+                                                        下过了
+                                                    </div>
+                                                {:else if !a.status}
+                                                    <button
+                                                        style="margin-bottom:0px;"
+                                                        class="p-button"
+                                                        on:click={() => {
+                                                            addQueue(a);
+                                                        }}>下载</button
+                                                    >
+                                                {:else if a.status == "downloading"}
+                                                    <div
+                                                        class="p-status-label--information"
+                                                    >
+                                                        下载中
+                                                    </div>
+                                                {:else if a.status == "waiting"}
+                                                    <div class="p-status-label">
+                                                        等待中
+                                                    </div>
+                                                {:else}
+                                                    <button
+                                                        style="margin-bottom:0px;"
+                                                        class="p-button--negative"
+                                                        on:click={() => {
+                                                            addQueue(a);
+                                                        }}>重试</button
+                                                    >
+                                                {/if}
+                                            </td>
+                                        </tr>
+                                        {#if FlagDB2.get(getId(a.url)) !== true && !!a.status && a.status !== "downloading" && a.status !== "waiting" && a.status !== "Done"}
+                                            <tr style="border-top:0">
+                                                <td colspan="3">
+                                                    <div class="p-notification--negative">
+                                                        <div class="p-notification__content">
+                                                            <h5 class="p-notification__title">
+                                                                出错了
+                                                            </h5>
+                                                            <p class="p-notification__message">
+                                                                {a.status}
+                                                            </p>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        {/if}
+                                    {/each}
+                                {/key}
                             {/if}
                         {/each}
                     </tbody>
                 </table>
-            {/if}
-        {/if}
-    {/key}
-</div>
+            </div>
+        </div>
+    {/if}
+{/if}

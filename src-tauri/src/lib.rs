@@ -27,6 +27,7 @@ use tauri_plugin_android_fs::AndroidFsExt;
 
 mod download;
 mod js_eval;
+mod api;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mp3Data {
@@ -130,7 +131,7 @@ pub fn run() {
             let _ = window.eval(js_eval::inject());
         }
     })
-    .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect])
+    .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot])
     .run(tauri::generate_context!())
     .expect("启动失败");
 }
