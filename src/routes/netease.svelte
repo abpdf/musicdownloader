@@ -385,7 +385,7 @@
                         .querySelector(".p-icon--chevron-up")
                         .classList.add("u-hide");
                     // Ensure active item is visible in horizontal layout
-                    scrollActiveNavItemIntoView();
+                    scrollActiveNavItemIntoView(link);
                 } else {
                     navRoot.classList.add("is-expanded");
                     toggle.setAttribute("aria-expanded", "true");
@@ -497,16 +497,6 @@
                 // Handle smooth scroll
                 const targetId = link.getAttribute("href");
                 const targetHeading = document.querySelector(targetId);
-                if (targetHeading) {
-                    targetHeading.setAttribute("tabindex", "-1");
-                    targetHeading.focus({
-                        preventScroll: true,
-                    });
-                    targetHeading.scrollIntoView({
-                        behavior: "smooth",
-                    });
-                    history.pushState(null, null, targetId);
-                }
 
                 (function () {
                     navRoot.classList.remove("is-expanded");
@@ -519,10 +509,22 @@
                         .querySelector(".p-icon--chevron-up")
                         .classList.add("u-hide");
                 })();
+                setTimeout(() =>{
+                    if (targetHeading) {
+                    targetHeading.setAttribute("tabindex", "-1");
+                    targetHeading.focus({
+                        preventScroll: true,
+                    });
+                    targetHeading.scrollIntoView({
+                        behavior: "smooth",
+                    });
+                    history.pushState(null, null, targetId);
+                }
+                },50);
                 setTimeout(() => {
                     // Ensure active item is visible in horizontal layout
-                    scrollActiveNavItemIntoView()
-                }, 100);
+                    scrollActiveNavItemIntoView(link);
+                }, 150);
                 
                 // We use a timeout to prevent the IntersectionObserver from immediately
                 // overriding the active state. As the IntersectionObserver points at the
