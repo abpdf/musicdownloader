@@ -11,7 +11,7 @@
 
 <main class="p-strip">
   <div class="row">
-    <div class="col-8 col-start-large-2">
+    <div class="grid-col-large-8 grid-col-start-large-3">
       {#if page.num == 0}
         <div in:fade="{{ duration: 400 }}">
           <!-- 标题行 -->

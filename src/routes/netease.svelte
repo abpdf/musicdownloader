@@ -466,9 +466,9 @@
                 },
                 {
                     rootMargin: isLargeView
-                        ? "-10% 0px -50% 0px"
+                        ? "0px 0px -80% 0px"
                         : "-10% 0px -75% 0px",
-                    threshold: 0.5,
+                    threshold: 0,
                 },
             );
 
@@ -813,7 +813,7 @@
             bind:value={name}
         />
         <button type="reset" class="p-search-box__reset">
-            <i class="p-icon--close">Close</i>
+            <i class="p-icon--close" on:click={()=>{document.getElementById("search")?.focus()}}>Close</i>
         </button>
         {#if searchType === "单曲"}
             <button
@@ -1139,10 +1139,10 @@
                             <th></th>
                         </tr>
                     </thead>
-                    <tbody>
-                        {#each result?.result?.playlists ?? [] as current}
+                    {#each result?.result?.playlists ?? [] as current}
+                        <tbody class="h" id="h{current.id}">
                             <tr>
-                                <td class="h" id="h{current.id}">
+                                <td>
                                     {current.name}
                                 </td>
                                 <td>
@@ -1159,7 +1159,7 @@
                                             on:click={() => {
                                                 getDetail(current);
                                             }}
-                                            class="p-button--nagative"
+                                            class="p-button--negative"
                                             >重试</button
                                         >
                                     {/if}
@@ -1268,8 +1268,8 @@
                                     {/each}
                                 {/key}
                             {/if}
-                        {/each}
-                    </tbody>
+                        </tbody>
+                    {/each}
                 </table>
             </div>
         </div>
