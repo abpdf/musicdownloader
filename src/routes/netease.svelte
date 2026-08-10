@@ -507,6 +507,23 @@
                     });
                     history.pushState(null, null, targetId);
                 }
+
+                (function () {
+                    navRoot.classList.remove("is-expanded");
+                    toggle.setAttribute("aria-expanded", "false");
+                    navList.setAttribute("aria-expanded", "false");
+                    toggle
+                        .querySelector(".p-icon--chevron-down")
+                        .classList.remove("u-hide");
+                    toggle
+                        .querySelector(".p-icon--chevron-up")
+                        .classList.add("u-hide");
+                })();
+                setTimeout(() => {
+                    // Ensure active item is visible in horizontal layout
+                    scrollActiveNavItemIntoView()
+                }, 100);
+                
                 // We use a timeout to prevent the IntersectionObserver from immediately
                 // overriding the active state. As the IntersectionObserver points at the
                 // center of the screen
@@ -701,7 +718,7 @@
         if (listItem) {
             listItem.scrollIntoView({
                 behavior: "smooth",
-                block: "start",
+                block: "nearest",
                 inline: "start",
             });
         }
@@ -792,6 +809,12 @@
         }
     }
 </script>
+
+<style>
+.h {
+    scroll-margin-top: 80px;
+}
+</style>
 
 <div style="margin-bottom: 1rem;">
     <button
