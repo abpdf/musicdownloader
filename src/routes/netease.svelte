@@ -518,7 +518,7 @@
                     targetHeading.scrollIntoView({
                         behavior: "smooth",
                     });
-                    history.pushState(null, null, targetId);
+                    //history.pushState(null, null, targetId);
                 }
                 },50);
                 setTimeout(() => {
