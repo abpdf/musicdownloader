@@ -957,12 +957,22 @@
                     <button
                         class="p-button--negative"
                         on:click={() => {
-                            for (let i = 0; i < result.length; i++) {
-                                FlagDB2.delete(getId(result[i].url));
+                            if (searchType === "单曲") {
+                                for (let i = 0; i < result.length; i++) {
+                                    FlagDB2.delete(getId(result[i].url));
+                                }
+                            } else {
+                                result?.result?.playlists?.forEach(playlist => {
+                                    playlist?.["详情"]?.forEach(item => {
+                                        FlagDB2.delete(getId(item.url));
+                                    });
+                                });
                             }
                             reset = !reset;
-                        }}>重置本页</button
+                        }}
                     >
+                        重置本页
+                    </button>
                 </p>
             </div>
         {/if}
