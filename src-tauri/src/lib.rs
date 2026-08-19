@@ -29,6 +29,9 @@ mod download;
 mod js_eval;
 mod api;
 
+#[cfg(not(target_os = "android"))]
+mod config;
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Mp3Data {
     mp3_url: String,
@@ -48,11 +51,24 @@ fn inject_script(window: &tauri::WebviewWindow) {
     let _ = window.eval(js_eval::inject());
 }
 */
+
+#[tauri::command]
+async fn is_android()->bool{
+    #[cfg(target_os = "android")]
+    {true}
+    #[cfg(not(target_os = "android"))]
+    {false}
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     let t = tauri::Builder::default();
     #[cfg(target_os = "android")]
-    let t = t.plugin(tauri_plugin_android_fs::init());
+    let t = t.plugin(tauri_plugin_android_fs::init())
+        .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot,is_android]);
+    #[cfg(not(target_os = "android"))]
+    let t = t.plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot,is_android,config::pick_and_save_folder,config::read_saved_folder]);
     t.setup(|app| {
         let main_window = app.get_webview_window("main").unwrap();
         let value = main_window.clone();
@@ -131,7 +147,6 @@ pub fn run() {
             let _ = window.eval(js_eval::inject());
         }
     })
-    .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot])
     .run(tauri::generate_context!())
     .expect("启动失败");
 }

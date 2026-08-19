@@ -30,7 +30,8 @@ ncm-api-rs = "0.1.0"
 [target.'cfg(target_os = "android")'.dependencies]
 tauri-plugin-android-fs = "28.4.0"
 tokio = "1"
-
+[target.'cfg(not(target_os = "android"))'.dependencies]
+tauri-plugin-dialog = "2"
 # Read the optimization guideline for more details: https://tauri.app/concept/size/#cargo-configuration
 [profile.release]
 codegen-units = 1

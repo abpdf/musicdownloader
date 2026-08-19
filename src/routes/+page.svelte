@@ -7,6 +7,7 @@
   import Apache from './apache.svelte';
   import Mit from './mit.svelte';
   import Netease from './netease.svelte';
+  import { invoke } from "@tauri-apps/api/core";
 </script>
 
 <main class="p-strip">
@@ -21,7 +22,19 @@
           </div>
             <h3 class="p-heading--3">用法(通用)：</h3>
             <p>搜索歌名或歌手，点击结果，你的下载将自动开始。</p>
-            <p>音频文件（mp3、aac）将自动存到系统Music文件夹的musicdownloaded子文件夹里</p>
+            <p>音频文件（mp3、aac）将自动保存。</p>
+            {#await invoke("is_android") then isAndroid}
+                {#if isAndroid}
+                    <p>保存位置：系统Music文件夹的musicdownloaded子文件夹里</p>
+                {:else}
+                    {#await invoke("read_saved_folder") then path}
+                    <p>保存位置：{path}</p>
+                    {:catch e}
+                    出错了
+                    {/await}
+                    <button class="p-button" onclick={()=>{invoke("pick_and_save_folder")} }>改变保存位置</button>
+                {/if}
+            {/await}
 
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
