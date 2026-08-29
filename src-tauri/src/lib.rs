@@ -68,7 +68,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot,is_android]);
     #[cfg(not(target_os = "android"))]
     let t = t.plugin(tauri_plugin_dialog::init())
-        .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot,is_android,config::pick_and_save_folder,config::read_saved_folder]);
+        .invoke_handler(tauri::generate_handler![greet,download::download_file_async,download::download_file_async_without_redirect,api::cloud_search,api::top_playlist,api::playlist_hot,is_android,config::pick_and_save_folder,config::read_saved_folder,config::reset_path]);
     t.setup(|app| {
         let main_window = app.get_webview_window("main").unwrap();
         let value = main_window.clone();

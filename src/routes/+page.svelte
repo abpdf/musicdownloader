@@ -4,6 +4,8 @@
   import { page } from './page.svelte.js';
   let showMIT = $state(false);
   let showApache = $state(false);
+  let reset_path = $state(0);
+  window.forceRefresh = () => reset_path++;
   import Apache from './apache.svelte';
   import Mit from './mit.svelte';
   import Netease from './netease.svelte';
@@ -23,19 +25,21 @@
             <h3 class="p-heading--3">用法(通用)：</h3>
             <p>搜索歌名或歌手，点击结果，你的下载将自动开始。</p>
             <p>音频文件（mp3、aac）将自动保存。</p>
+            {#key reset_path}
             {#await invoke("is_android") then isAndroid}
                 {#if isAndroid}
                     <p>保存位置：系统Music文件夹的musicdownloaded子文件夹里</p>
                 {:else}
                     {#await invoke("read_saved_folder") then path}
                     <p>保存位置：{path}</p>
+                    <button class="p-button" onclick={()=>{invoke("reset_path")} }>恢复默认</button>
                     {:catch e}
-                    出错了
+                     <p>保存位置：系统Music文件夹的musicdownloaded子文件夹里</p>
                     {/await}
                     <button class="p-button" onclick={()=>{invoke("pick_and_save_folder")} }>改变保存位置</button>
                 {/if}
             {/await}
-
+            {/key}
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
             <h2 class="p-heading--2">通过 祈杰のMeting-API 下载</h2>

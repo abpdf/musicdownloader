@@ -65,16 +65,22 @@ pub async fn download_file_async(app_handle: tauri::AppHandle, url: String, name
 /// - app_handle: Tauri 应用句柄
 pub fn download_file(app_handle: tauri::AppHandle,url: &str, name: &str) -> String {
     #[cfg(not(target_os = "android"))]
-    let _ = app_handle;
-    #[cfg(not(target_os = "android"))]
-    let dir = match dirs::audio_dir() {
-        Some(dir) => dir,
-        None => {
-            eprintln!("⚠️ 无法获取下载目录");
-            return "⚠️ 无法获取下载目录".to_string();
+    let dir : std::path::PathBuf = match crate::config::read_saved_folder(app_handle){
+        Ok(saved_path) => {
+            // 如果成功读取，直接返回该路径字符串
+            saved_path.into()
+        }
+        Err(_)=>{
+            match dirs::audio_dir() {
+                Some(dir) => dir.join("musicdownloaded"),
+                None => {
+                    eprintln!("⚠️ 无法获取下载目录");
+                    return "⚠️ 无法获取下载目录".to_string();
+                }
+            }
         }
     };
-
+    
     // 从 URL 提取扩展名（最后一个点之后的部分）
     let extension = url
         .split('/')
@@ -89,7 +95,7 @@ pub fn download_file(app_handle: tauri::AppHandle,url: &str, name: &str) -> Stri
     let filename = format!("{}.{}", base_name, extension);
     // 创建子目录路径
     #[cfg(not(target_os = "android"))]
-    let download_folder = dir.join("musicdownloaded");
+    let download_folder = dir;
 
     // 如果目录不存在，则创建（包括父目录）
     #[cfg(not(target_os = "android"))]
