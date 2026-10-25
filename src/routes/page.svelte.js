@@ -1,1 +1,1 @@
-export const page = $state({num:0});
+export const page = $state({num:0,song:undefined});

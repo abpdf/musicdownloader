@@ -1088,7 +1088,7 @@
                 {#key reset}
                     {#each result ?? [] as a}
                         <tr>
-                            <th>{a.name}</th>
+                            <th on:click={() => { }}>{a.name}</th>
                             <td>{a.artist}</td>
                             <td>
                                 {#if a.status == "Done"}

@@ -108,4 +108,41 @@
       {/if}
     </div>
   </div>
+
+ {#if page.song!==undefined}
+ <!-- ② 常驻底部:flex 一行,不用 col -->
+  <footer class="l-footer p-strip--light is-shallow"
+          style="position: fixed; left: 0; right: 0; bottom: 0;top:0 z-index: 100;
+                 padding-bottom: env(safe-area-inset-bottom);">
+
+    <div style="display: flex; align-items: center; gap: .75rem;
+                max-width: 80rem; margin: 0 auto; padding: 0 1.5rem;">
+
+      <!-- 封面(不压缩) -->
+      <img src={page.song.pic}
+           width="48" height="48" alt="封面"
+           style="flex: 0 0 auto; border-radius: .25rem; object-fit: cover;">
+
+      <!-- 中间:标题 + 音频(可伸缩,min-width:0 让省略号生效) -->
+      <div style="flex: 1 1 auto; min-width: 0;">
+        <p class="p-heading--5 u-no-margin--bottom u-truncate">{page.song.name}</p>
+        <audio controls autoplay preload="auto"
+               src={page.song.url}
+               style="width: 100%; height: 32px;">
+        </audio>
+      </div>
+
+      <!-- 关闭按钮(不压缩) -->
+      <button class="p-button--base"
+              aria-label="关闭"
+              style="flex: 0 0 auto; margin: 0; padding: .25rem;"
+              onclick={() => { page.song=undefined}}
+              >
+        <i class="p-icon--close">关闭</i>
+      </button>
+
+    </div>
+  </footer>
+{/if}
+
 </main>
