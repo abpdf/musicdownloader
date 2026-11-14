@@ -59,7 +59,7 @@
 
     const origAdd = EventTarget.prototype.addEventListener;
     const origObserver = window.IntersectionObserver;
-
+/*
     async function search() {
         isSearch = true;
         result = [];
@@ -75,6 +75,39 @@
             searchInfo = error.message || JSON.stringify(error);
         }
         isSearch = false;
+    }
+*/
+
+    async function search() {
+        isSearch = true;
+        result = [];
+        searchInfo = "";
+        try {
+            const jsonString = await invoke("cloud_search", {
+                keywords: name,
+                t: "1",
+                limit: "" + limit,
+            });
+            //throw jsonString;
+            
+            result = JSON.parse(jsonString).result.songs;
+            for (let k = 0; k < result.length; k++) {
+            
+                result[k].artist=result[k].ar[0].name;
+                for (let i = 1; i <= result[k].ar.length-1; i++) {
+                    result[k].artist+="/"+result[k].ar[i].name;
+                }
+                result[k].pic=result[k].al.picUrl;
+                result[k].url="https://api.qijieya.cn/meting/?server=netease&type=url&id="+result[k].privilege.id;
+            }
+        } catch (error) {
+            searchInfo =
+                typeof error === "string"
+                    ? error
+                    : error.message || JSON.stringify(error);
+        }finally{
+            isSearch = false;
+        }
     }
     async function searchPlaylist() {
         isSearch = true;
@@ -1088,7 +1121,7 @@
                 {#key reset}
                     {#each result ?? [] as a}
                         <tr>
-                            <th on:click={() => { }}>{a.name}</th>
+                            <th on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</th>
                             <td>{a.artist}</td>
                             <td>
                                 {#if a.status == "Done"}
@@ -1240,7 +1273,7 @@
                                 {#key reset}
                                     {#each current["详情"] as a}
                                         <tr>
-                                            <th>{a.name}</th>
+                                            <th on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</th>
                                             <td>{a.artist}</td>
                                             <td>
                                                 {#if a.status == "Done"}
