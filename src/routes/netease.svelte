@@ -97,7 +97,7 @@
                 for (let i = 1; i <= result[k].ar.length-1; i++) {
                     result[k].artist+="/"+result[k].ar[i].name;
                 }
-                result[k].pic=result[k].al.picUrl;
+                result[k].pic=result[k].al.picUrl.replace(/^http:\/\//, "https://");
                 result[k].url="https://api.qijieya.cn/meting/?server=netease&type=url&id="+result[k].privilege.id;
             }
         } catch (error) {
@@ -1122,7 +1122,7 @@
                     {#each result ?? [] as a}
                         <tr>
                             <th on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</th>
-                            <td>{a.artist}</td>
+                            <td on:click={()=>{page.song=a.mv}}>{a.artist}</td>
                             <td>
                                 {#if a.status == "Done"}
                                     <div class="p-status-label--positive">
