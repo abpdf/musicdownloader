@@ -43,7 +43,7 @@
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
             <h2 class="p-heading--2">通过 祈杰のMeting-API 下载</h2>
-            <button class="p-button--positive" onclick={()=>{page.num = 2;page.song=14592571} }>开始</button>
+            <button class="p-button--positive" onclick={()=>{page.num = 2;} }>开始</button>
           </div>
        
           <div class="p-card--highlighted" style="padding: 2rem;">
@@ -122,7 +122,7 @@
   <p>加载中</p>
 {:then u}
   {#if u?.data?.url}
-    <video controls autoplay src={u.data.url.replace(/^http:\/\//, "https://")}   style="display:block;width:100%;height:auto;max-width:100%;max-height:75vh;max-height:100dvh;object-fit:contain;background:#eee;"></video>
+    <video controls autoplay src={u.data.url.replace(/^http:\/\//, "https://")} style="display:block;width:100%;height:auto;max-width:100%;max-height:75vh;object-fit:contain;background:#eee;"></video>
   {:else}
     <p>无法获取视频地址</p>
   {/if}
