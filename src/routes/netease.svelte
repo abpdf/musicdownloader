@@ -1121,7 +1121,16 @@
                 {#key reset}
                     {#each result ?? [] as a}
                         <tr>
-                            <th on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</th>
+                            {#if a.mv===0}
+                                <th on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</th>
+                            {:else}
+                                <th>
+                                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div on:click={()=>{page.song={"url":a.url,"pic":a.pic,"name":a.name+"-"+a.artist}}}>{a.name}</div>
+                                    <button style="margin-bottom:0px;" on:click={()=>{page.song=a.mv}}>MV</button>
+                                    </div>
+                                </th>
+                            {/if}
                             <td on:click={()=>{page.song=a.mv}}>{a.artist}</td>
                             <td>
                                 {#if a.status == "Done"}

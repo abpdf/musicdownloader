@@ -43,7 +43,7 @@
           <!-- 卡片保留 padding -->
           <div class="p-card--highlighted" style="padding: 2rem;">
             <h2 class="p-heading--2">通过 祈杰のMeting-API 下载</h2>
-            <button class="p-button--positive" onclick={()=>{page.num = 2} }>开始</button>
+            <button class="p-button--positive" onclick={()=>{page.num = 2;page.song=14592571} }>开始</button>
           </div>
        
           <div class="p-card--highlighted" style="padding: 2rem;">
@@ -117,7 +117,19 @@
 
     <div style="display: flex; align-items: center; gap: .75rem;
                 max-width: 80rem; margin: 0 auto; padding: 0 1.5rem;">
-
+    {#if typeof page.song==="number"}
+{#await fetch(`https://ncm-api.prod.gbclstudio.cn/mv/url?id=${page.song}&r=1080`).then(r => r.json())}
+  <p>加载中</p>
+{:then u}
+  {#if u?.data?.url}
+    <video controls autoplay src={u.data.url.replace(/^http:\/\//, "https://")}   style="display:block;width:100%;height:auto;max-width:100%;max-height:75vh;max-height:100dvh;object-fit:contain;background:#eee;"></video>
+  {:else}
+    <p>无法获取视频地址</p>
+  {/if}
+{:catch error}
+  <p>Something went wrong: {error.message}</p>
+{/await}
+    {:else}
       <!-- 封面(不压缩) -->
       <img src={page.song.pic}
            width="48" height="48" alt="封面"
@@ -132,6 +144,7 @@
         </audio>
       </div>
 
+    {/if}
       <!-- 关闭按钮(不压缩) -->
       <button class="p-button--base"
               aria-label="关闭"
